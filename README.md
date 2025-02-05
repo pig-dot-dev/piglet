@@ -20,30 +20,6 @@ computer/
 
 All natively integrated into the Windows OS (written in zig btw 😎).
 
-### Features
-
-**Platform Support:**
-- Windows 7 and up
-
-**Current APIs:**
-```
-computer/
-├── display/
-│   ├── screenshot
-│   └── dimensions
-├── input/
-│   ├── keyboard/
-│   │   ├── type
-│   │   └── key
-│   └── mouse/
-│       ├── position
-│       ├── move
-│       └── click
-```
-
-**Access:**
-- HTTP API served at `http://localhost:3000`
-
 ### Installation
 The below PowerShell script will install Piglet onto your Windows machine, and add the `piglet` executable to your PATH.
 
@@ -68,6 +44,39 @@ Piglet can then be started with:
 ```powershell
 piglet
 ```
+
+### API
+
+Piglet currently supports:
+```
+computer/
+├── display/
+│   ├── screenshot
+│   └── dimensions
+├── input/
+│   ├── keyboard/
+│   │   ├── type
+│   │   └── key
+│   └── mouse/
+│       ├── position
+│       ├── move
+│       └── click
+```
+
+- GET `/computer/display/screenshot`
+  - Returns body: image/png bytes
+- GET `/computer/display/dimensions` 
+  - Returns json body: `{ width: number, height: number }`
+- POST `/computer/input/keyboard/type`
+  - Requires json body: `{ text: string }`
+- POST `/computer/input/keyboard/key`
+  - Requires json body: `{ key: string }`
+- GET `/computer/input/mouse/position`
+  - Returns json body: `{ x: number, y: number }`
+- POST `/computer/input/mouse/move`
+  - Requires json body: `{ x: number, y: number }`
+- POST `/computer/input/mouse/click`
+  - Requires json body: `{ x: number, y: number, button: "left"|"right", down: boolean }`
 
 ### Roadmap
 ```
