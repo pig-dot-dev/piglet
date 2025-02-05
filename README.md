@@ -44,6 +44,33 @@ computer/
 **Access:**
 - HTTP API served at `http://localhost:3000`
 
+### Installation
+The Piglet can be installed on Windows machines, with current support for Windows 7 and later.
+
+The below PowerShell script will install it, and add the `piglet` executable to your PATH.
+
+```powershell
+# Create tool directory
+$toolDir = "$env:USERPROFILE\.piglet"
+New-Item -ItemType Directory -Force -Path $toolDir
+
+# Download piglet
+Invoke-WebRequest -Uri "https://github.com/pig-dot-dev/piglet/releases/download/v0.0.0/piglet.exe" -OutFile "$toolDir\piglet.exe"
+
+# Add to PATH if not already there
+$userPath = [Environment]::GetEnvironmentVariable("Path", "User")
+if ($userPath -notlike "*$toolDir*") {
+    [Environment]::SetEnvironmentVariable("Path", $userPath + ";" + $toolDir, "User")
+}
+
+Write-Host "Piglet installed! You may need to restart your terminal for PATH changes to take effect."
+```
+
+Piglet can then be started with:
+```powershell
+piglet
+```
+
 ### Roadmap
 ```
 computer/
