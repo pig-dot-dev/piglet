@@ -45,9 +45,7 @@ computer/
 - HTTP API served at `http://localhost:3000`
 
 ### Installation
-The Piglet can be installed on Windows machines, with current support for Windows 7 and later.
-
-The below PowerShell script will install it, and add the `piglet` executable to your PATH.
+The below PowerShell script will install Piglet onto your Windows machine, and add the `piglet` executable to your PATH.
 
 ```powershell
 # Create tool directory
