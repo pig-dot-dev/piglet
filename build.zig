@@ -18,6 +18,12 @@ pub fn build(b: *std.Build) void {
     });
     exe.root_module.addImport("httpz", httpz.module("httpz"));
 
+    const websocket = b.dependency("websocket", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.root_module.addImport("websocket", websocket.module("websocket"));
+
     const zigimg_dependency = b.dependency("zigimg", .{
         .target = target,
         .optimize = optimize,
