@@ -56,7 +56,7 @@ pub fn Run(allocator: std.mem.Allocator, computer: *Computer, port: u16) !void {
     // router.ws("/computer/shell/powershell/session", handlePsSession);
 
     // blocks
-    std.debug.print("Server running at http://localhost:{d}\n", .{port});
+    std.debug.print("Local server running at http://localhost:{d}\n", .{port});
     try server.listen();
 }
 

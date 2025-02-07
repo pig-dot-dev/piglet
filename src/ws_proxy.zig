@@ -98,16 +98,10 @@ const Handler = struct {
 };
 
 pub fn connectAndListen(allocator: std.mem.Allocator, server_host: []const u8, server_path: []const u8, server_port: u16, target_port: u16) !void {
-    std.debug.print("Attempting to connect to wss://{s}:{d}{s}\n", .{ server_host, server_port, server_path });
-
     // Create a certificate bundle for TLS
     var bundle = std.crypto.Certificate.Bundle{};
     try bundle.rescan(allocator);
-    defer {
-        std.debug.print("Deinitializing certificate bundle\n", .{});
-        bundle.deinit(allocator);
-        std.debug.print("Deinitialized certificate bundle\n", .{});
-    }
+    defer bundle.deinit(allocator);
 
     var client = try websocket.connect(allocator, server_host, server_port, .{
         .tls = true,
@@ -120,16 +114,14 @@ pub fn connectAndListen(allocator: std.mem.Allocator, server_host: []const u8, s
     const headers_str = try std.fmt.allocPrint(allocator, "Host: {s}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13", .{server_host});
     defer allocator.free(headers_str);
 
-    std.debug.print("Connected, performing handshake with headers:\n{s}\n", .{headers_str});
     try client.handshake(server_path, .{
         .timeout_ms = 5000,
         .headers = headers_str,
     });
-    std.debug.print("Handshake complete, creating handler\n", .{});
 
     var handler = Handler.init(allocator, &client, target_port);
     defer handler.deinit();
 
-    std.debug.print("Starting message loop\n", .{});
+    std.debug.print("Connected to Pig control server\n", .{});
     return try client.readLoop(&handler);
 }
