@@ -39,18 +39,22 @@ const Handler = struct {
     }
 
     pub fn deinit(self: *Handler) void {
+        // called automatically on close
         self.http_client.deinit();
     }
 
     pub fn handle(h: *Handler, message: websocket.Message) !void {
         // Websocket library expects us to implement this method within a Handler class
         switch (message.type) {
-            .text => {
+            .binary => {
                 var arena = std.heap.ArenaAllocator.init(h.allocator);
                 defer arena.deinit();
                 const parsed = try std.json.parseFromSlice(Request, arena.allocator(), message.data, .{});
                 const payload = parsed.value;
-                try h.forwardRequest(arena.allocator(), payload);
+                h.forwardRequest(arena.allocator(), payload) catch |err| {
+                    std.debug.print("Error forwarding request: {s}\n", .{@errorName(err)});
+                    return err;
+                };
             },
             else => {},
         }
@@ -68,9 +72,12 @@ const Handler = struct {
         try req.wait();
 
         // Read response body
-        var body_buf: [MAX_BODY_SIZE]u8 = undefined;
-        _ = try req.readAll(&body_buf);
-        const body_len = req.response.content_length orelse return error.NoBodyLength;
+        const content_length = req.response.content_length orelse return error.NoBodyLength;
+        std.debug.print("Forwarding response of size: {d} bytes\n", .{content_length});
+
+        var body_buf = try arena_alloc.alloc(u8, content_length);
+        const body_len = try req.readAll(body_buf);
+        std.debug.print("Read response of size: {d} bytes\n", .{body_len});
 
         // Reply back to the websocket server
         const response = Response{
@@ -80,9 +87,9 @@ const Handler = struct {
             .body = body_buf[0..body_len],
         };
 
-        var string = std.ArrayList(u8).init(arena_alloc);
-        try std.json.stringify(response, .{}, string.writer());
-        return h.write(string.items);
+        var writer = std.ArrayList(u8).init(arena_alloc);
+        try std.json.stringify(response, .{}, writer.writer());
+        try h.client.writeBin(writer.items);
     }
 
     pub fn write(self: *Handler, data: []u8) !void {
@@ -90,20 +97,30 @@ const Handler = struct {
     }
 
     pub fn close(self: *Handler) void {
+        // Websocket library expects us to implement this method within a Handler class
         self.deinit();
     }
 };
 
+pub const TunnelOptions = struct {
+    control_host: []const u8,
+    bearer_token: ?[]const u8 = null,
+    control_port: u16 = 443,
+    target_port: u16 = 3000,
+};
+
 /// Start a websocket client and subscribe to a control server
 /// Forwarding requests to the local server
-pub fn startControlTunnel(allocator: std.mem.Allocator, server_host: []const u8, server_path: []const u8, server_port: u16, target_port: u16) !void {
+pub fn startControlTunnel(allocator: std.mem.Allocator, options: TunnelOptions) !void {
+    const control_path = "/tunnel/ws";
+
     // Create a certificate bundle for TLS
     var bundle = std.crypto.Certificate.Bundle{};
     try bundle.rescan(allocator);
     defer bundle.deinit(allocator);
 
     // Sanitize server_host
-    var host = server_host;
+    var host = options.control_host;
 
     // Strip leading http:// from server_host
     if (std.mem.startsWith(u8, host, "http://")) {
@@ -118,7 +135,7 @@ pub fn startControlTunnel(allocator: std.mem.Allocator, server_host: []const u8,
         host = host[0 .. host.len - 1];
     }
 
-    var client = try websocket.connect(allocator, host, server_port, .{
+    var client = try websocket.connect(allocator, host, options.control_port, .{
         .tls = true,
         .ca_bundle = bundle,
         .max_size = 1024 * 1024 * 10, // 10MB max message size
@@ -126,16 +143,21 @@ pub fn startControlTunnel(allocator: std.mem.Allocator, server_host: []const u8,
     });
     defer client.deinit();
 
-    const headers_str = try std.fmt.allocPrint(allocator, "Host: {s}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13", .{host});
+    const headers_str = try std.fmt.allocPrint(allocator, "Host: {s}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13{s}", .{
+        host,
+        if (options.bearer_token) |token|
+            try std.fmt.allocPrint(allocator, "\r\nAuthorization: Bearer {s}", .{token})
+        else
+            "",
+    });
     defer allocator.free(headers_str);
 
-    try client.handshake(server_path, .{
+    try client.handshake(control_path, .{
         .timeout_ms = 5000,
         .headers = headers_str,
     });
 
-    var handler = Handler.init(allocator, &client, target_port);
-    defer handler.deinit();
+    var handler = Handler.init(allocator, &client, options.target_port);
 
     std.debug.print("Connected to control server\n", .{});
     return try client.readLoop(&handler);
