@@ -46,20 +46,19 @@ const Handler = struct {
         // Websocket library expects us to implement this method within a Handler class
         switch (message.type) {
             .text => {
-                const parsed = try std.json.parseFromSlice(Request, h.allocator, message.data, .{});
-                defer parsed.deinit();
+                var arena = std.heap.ArenaAllocator.init(h.allocator);
+                defer arena.deinit();
+                const parsed = try std.json.parseFromSlice(Request, arena.allocator(), message.data, .{});
                 const payload = parsed.value;
-                try h.forwardRequest(payload);
+                try h.forwardRequest(arena.allocator(), payload);
             },
             else => {},
         }
     }
 
-    fn forwardRequest(h: *Handler, payload: Request) !void {
+    fn forwardRequest(h: *Handler, arena_alloc: std.mem.Allocator, payload: Request) !void {
         var headers_buf: [MAX_HEADERS_SIZE]u8 = undefined;
-
-        const full_uri = try std.fmt.allocPrint(h.allocator, "http://localhost:{d}{s}?{s}", .{ h.target_port, payload.path, payload.query });
-        defer h.allocator.free(full_uri);
+        const full_uri = try std.fmt.allocPrint(arena_alloc, "http://localhost:{d}{s}?{s}", .{ h.target_port, payload.path, payload.query });
 
         const uri = try std.Uri.parse(full_uri);
         var req = try h.http_client.open(.GET, uri, .{ .server_header_buffer = &headers_buf });
@@ -80,10 +79,8 @@ const Handler = struct {
             .headers = null, // TODO: implement header return
             .body = body_buf[0..body_len],
         };
-        var res_buf: [MAX_BODY_SIZE + MAX_HEADERS_SIZE + 1024]u8 = undefined; // 1024 for some extra space for stuff
-        var fba = std.heap.FixedBufferAllocator.init(&res_buf);
-        var string = std.ArrayList(u8).init(fba.allocator());
-        defer string.deinit();
+
+        var string = std.ArrayList(u8).init(arena_alloc);
         try std.json.stringify(response, .{}, string.writer());
         return h.write(string.items);
     }
@@ -97,13 +94,31 @@ const Handler = struct {
     }
 };
 
-pub fn connectAndListen(allocator: std.mem.Allocator, server_host: []const u8, server_path: []const u8, server_port: u16, target_port: u16) !void {
+/// Start a websocket client and subscribe to a control server
+/// Forwarding requests to the local server
+pub fn startControlTunnel(allocator: std.mem.Allocator, server_host: []const u8, server_path: []const u8, server_port: u16, target_port: u16) !void {
     // Create a certificate bundle for TLS
     var bundle = std.crypto.Certificate.Bundle{};
     try bundle.rescan(allocator);
     defer bundle.deinit(allocator);
 
-    var client = try websocket.connect(allocator, server_host, server_port, .{
+    // Sanitize server_host
+    var host = server_host;
+
+    // Strip leading http:// from server_host
+    if (std.mem.startsWith(u8, host, "http://")) {
+        host = host[7..];
+    }
+    // Strip leading https:// from host
+    if (std.mem.startsWith(u8, host, "https://")) {
+        host = host[8..];
+    }
+    // Strip trailing slash from host
+    if (std.mem.endsWith(u8, host, "/")) {
+        host = host[0 .. host.len - 1];
+    }
+
+    var client = try websocket.connect(allocator, host, server_port, .{
         .tls = true,
         .ca_bundle = bundle,
         .max_size = 1024 * 1024 * 10, // 10MB max message size
@@ -111,7 +126,7 @@ pub fn connectAndListen(allocator: std.mem.Allocator, server_host: []const u8, s
     });
     defer client.deinit();
 
-    const headers_str = try std.fmt.allocPrint(allocator, "Host: {s}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13", .{server_host});
+    const headers_str = try std.fmt.allocPrint(allocator, "Host: {s}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13", .{host});
     defer allocator.free(headers_str);
 
     try client.handshake(server_path, .{
@@ -122,6 +137,6 @@ pub fn connectAndListen(allocator: std.mem.Allocator, server_host: []const u8, s
     var handler = Handler.init(allocator, &client, target_port);
     defer handler.deinit();
 
-    std.debug.print("Connected to Pig control server\n", .{});
+    std.debug.print("Connected to control server\n", .{});
     return try client.readLoop(&handler);
 }

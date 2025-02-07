@@ -5,7 +5,7 @@ const Frame = @import("display/Frame.zig");
 const Mouse = @import("input/mouse.zig").Mouse;
 const Keyboard = @import("input/Keyboard.zig").Keyboard;
 const server = @import("server.zig");
-const ws_proxy = @import("ws_proxy.zig");
+const tunnel = @import("tunnel.zig");
 
 const Computer = @import("Computer.zig");
 
@@ -25,13 +25,13 @@ pub fn main() !void {
     // Parse command line arguments
     var i: usize = 1;
     while (i < args.len) : (i += 1) {
-        if (std.mem.eql(u8, args[i], "--pig-host") and i + 1 < args.len) {
+        if (std.mem.eql(u8, args[i], "--control-host") and i + 1 < args.len) {
             pig_host = args[i + 1];
             i += 1;
-        } else if (std.mem.eql(u8, args[i], "--pig-port") and i + 1 < args.len) {
+        } else if (std.mem.eql(u8, args[i], "--control-port") and i + 1 < args.len) {
             pig_port = try std.fmt.parseInt(u16, args[i + 1], 10);
             i += 1;
-        } else if (std.mem.eql(u8, args[i], "--target-port") and i + 1 < args.len) {
+        } else if (std.mem.eql(u8, args[i], "--port") and i + 1 < args.len) {
             target_port = try std.fmt.parseInt(u16, args[i + 1], 10);
             i += 1;
         }
@@ -41,9 +41,9 @@ pub fn main() !void {
     defer computer.deinit();
 
     // Subscribe upstream if host specified
-    var ws_thread: std.Thread = undefined;
+    var tunnel_thread: std.Thread = undefined;
     if (pig_host) |ph| {
-        ws_thread = try std.Thread.spawn(.{}, ws_proxy.connectAndListen, .{
+        tunnel_thread = try std.Thread.spawn(.{}, tunnel.startControlTunnel, .{
             allocator,
             ph,
             "/ws",
@@ -51,7 +51,7 @@ pub fn main() !void {
             target_port,
         });
     }
-    defer ws_thread.join();
+    defer tunnel_thread.join();
 
     try server.Run(allocator, &computer, target_port);
 }
