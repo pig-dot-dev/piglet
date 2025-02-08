@@ -4,7 +4,6 @@ const httpz = @import("httpz");
 const json = std.json;
 const http = std.http;
 
-const MAX_BODY_SIZE = 1024 * 1024 * 10; // 10MB to match websocket max_size
 const MAX_HEADERS_SIZE = 1024 * 64; // 64KB to match buffer_size
 
 const RequestMeta = struct {
