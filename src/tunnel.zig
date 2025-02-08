@@ -7,20 +7,54 @@ const http = std.http;
 const MAX_BODY_SIZE = 1024 * 1024 * 10; // 10MB to match websocket max_size
 const MAX_HEADERS_SIZE = 1024 * 64; // 64KB to match buffer_size
 
-const Request = struct {
+const RequestMeta = struct {
     requestId: []const u8,
     method: []const u8,
     path: []const u8,
     headers: json.ArrayHashMap([]const u8),
-    body: ?[]const u8,
     query: []const u8,
 };
 
-const Response = struct {
+const ResponseMeta = struct {
     requestId: []const u8,
     status: u16,
     headers: ?json.ArrayHashMap([]const u8),
-    body: ?[]const u8,
+};
+const RequestState = enum {
+    awaiting_meta,
+    awaiting_body,
+};
+
+const RequestAccumulator = struct {
+    state: RequestState = .awaiting_meta,
+    meta_parse_result: ?std.json.Parsed(RequestMeta) = null,
+    body: std.ArrayList(u8),
+    allocator: std.mem.Allocator,
+
+    pub fn init(allocator: std.mem.Allocator) RequestAccumulator {
+        return .{
+            .state = .awaiting_meta,
+            .meta_parse_result = null,
+            .body = std.ArrayList(u8).init(allocator),
+            .allocator = allocator,
+        };
+    }
+
+    pub fn deinit(self: *RequestAccumulator) void {
+        if (self.meta_parse_result) |*meta| {
+            meta.deinit();
+        }
+        self.body.deinit(); // Frees underlying memory
+    }
+
+    pub fn reset(self: *RequestAccumulator) void {
+        if (self.meta_parse_result) |*meta| {
+            meta.deinit();
+            self.meta_parse_result = null;
+        }
+        self.state = .awaiting_meta;
+        self.body.clearRetainingCapacity(); // Keeps allocated memory for reuse
+    }
 };
 
 const Handler = struct {
@@ -28,6 +62,7 @@ const Handler = struct {
     client: *websocket.Client,
     http_client: http.Client,
     target_port: u16,
+    accumulator: RequestAccumulator,
 
     pub fn init(allocator: std.mem.Allocator, ws_client: *websocket.Client, target_port: u16) Handler {
         return .{
@@ -35,69 +70,114 @@ const Handler = struct {
             .client = ws_client,
             .http_client = http.Client{ .allocator = allocator },
             .target_port = target_port,
+            .accumulator = RequestAccumulator.init(allocator),
         };
     }
 
     pub fn deinit(self: *Handler) void {
-        // called automatically on close
         self.http_client.deinit();
+        self.accumulator.deinit();
     }
 
     pub fn handle(h: *Handler, message: websocket.Message) !void {
-        // Websocket library expects us to implement this method within a Handler class
-        switch (message.type) {
-            .binary => {
-                var arena = std.heap.ArenaAllocator.init(h.allocator);
-                defer arena.deinit();
-                const parsed = try std.json.parseFromSlice(Request, arena.allocator(), message.data, .{});
-                const payload = parsed.value;
-                h.forwardRequest(arena.allocator(), payload) catch |err| {
-                    std.debug.print("Error forwarding request: {s}\n", .{@errorName(err)});
-                    return err;
-                };
+        switch (h.accumulator.state) {
+            .awaiting_meta => {
+                if (message.type != .text) return error.ExpectedMetadata;
+                const parse_result = try std.json.parseFromSlice(RequestMeta, h.allocator, message.data, .{});
+                h.accumulator.meta_parse_result = parse_result;
+                h.accumulator.state = .awaiting_body;
             },
-            else => {},
+            .awaiting_body => {
+                if (message.type == .text) {
+                    if (std.mem.eql(u8, message.data, "end")) {
+                        // text message "end" is sent to mark the end of a request body
+                        defer h.accumulator.reset();
+                        try h.forwardRequest();
+                    } else {
+                        return error.UnexpectedTextMessage;
+                    }
+                } else if (message.type == .binary) {
+                    try h.accumulator.body.appendSlice(message.data);
+                } else {
+                    return error.UnexpectedMessageType;
+                }
+            },
         }
     }
+    fn forwardRequest(h: *Handler) !void {
+        var arena = std.heap.ArenaAllocator.init(h.allocator);
+        defer arena.deinit();
+        var allocator = arena.allocator();
 
-    fn forwardRequest(h: *Handler, arena_alloc: std.mem.Allocator, payload: Request) !void {
+        const meta_result = h.accumulator.meta_parse_result orelse return error.NoMetadata;
+        const meta = meta_result.value;
+
+        // Start building our http request
+
         var headers_buf: [MAX_HEADERS_SIZE]u8 = undefined;
-        const full_uri = try std.fmt.allocPrint(arena_alloc, "http://localhost:{d}{s}?{s}", .{ h.target_port, payload.path, payload.query });
+        const full_uri = try std.fmt.allocPrint(allocator, "http://localhost:{d}{s}?{s}", .{
+            h.target_port,
+            meta.path,
+            meta.query,
+        });
 
         const uri = try std.Uri.parse(full_uri);
-        var req = try h.http_client.open(.GET, uri, .{ .server_header_buffer = &headers_buf });
+        const method = std.meta.stringToEnum(http.Method, meta.method) orelse return error.InvalidMethod;
+
+        var req = try h.http_client.open(method, uri, .{ .server_header_buffer = &headers_buf });
         defer req.deinit();
+
+        // TODO: Set headers from meta
+
+        // Send body if we have one
         try req.send();
+        if (h.accumulator.body.items.len > 0) {
+            std.debug.print("Forwarding request body: {d} bytes\n", .{h.accumulator.body.items.len});
+            try req.writeAll(h.accumulator.body.items);
+        }
         try req.finish();
         try req.wait();
 
-        // Read response body
-        const content_length = req.response.content_length orelse return error.NoBodyLength;
-        std.debug.print("Forwarding response of size: {d} bytes\n", .{content_length});
+        // Start building our websocket responses
 
-        var body_buf = try arena_alloc.alloc(u8, content_length);
-        const body_len = try req.readAll(body_buf);
-        std.debug.print("Read response of size: {d} bytes\n", .{body_len});
-
-        // Reply back to the websocket server
-        const response = Response{
-            .requestId = payload.requestId,
+        // Send response meta as JSON
+        const response_meta = ResponseMeta{
+            .requestId = meta.requestId,
             .status = @intCast(@intFromEnum(req.response.status)),
-            .headers = null, // TODO: implement header return
-            .body = body_buf[0..body_len],
+            .headers = null,
         };
+        var json_writer = std.ArrayList(u8).init(allocator);
+        try std.json.stringify(response_meta, .{}, json_writer.writer());
+        std.debug.print("Returning response meta: {s}\n", .{json_writer.items});
+        try h.client.write(json_writer.items);
+        std.debug.print("Done returning response meta\n", .{});
 
-        var writer = std.ArrayList(u8).init(arena_alloc);
-        try std.json.stringify(response, .{}, writer.writer());
-        try h.client.writeBin(writer.items);
-    }
+        // Send response body if we have one
+        if (req.response.content_length) |content_length| {
+            var body_buf = try allocator.alloc(u8, content_length);
+            const body_len = try req.readAll(body_buf);
+            std.debug.print("Returning body of size: {d} bytes\n", .{body_len});
 
-    pub fn write(self: *Handler, data: []u8) !void {
-        return self.client.write(data);
+            // Send in chunks
+            const CHUNK_SIZE = 64 * 1024; // 64KB chunks
+            if (body_len > 0) {
+                var offset: usize = 0;
+                while (offset < body_len) {
+                    const remaining = body_len - offset;
+                    const chunk_size = @min(CHUNK_SIZE, remaining);
+                    std.debug.print("Returning chunk of size: {d} bytes\n", .{chunk_size});
+                    try h.client.writeBin(body_buf[offset .. offset + chunk_size]);
+                    offset += chunk_size;
+                }
+            }
+        }
+
+        // Send end signal
+        var end_msg = [_]u8{ 'e', 'n', 'd' };
+        try h.client.write(&end_msg);
     }
 
     pub fn close(self: *Handler) void {
-        // Websocket library expects us to implement this method within a Handler class
         self.deinit();
     }
 };
