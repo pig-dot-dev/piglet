@@ -25,13 +25,13 @@ const RequestState = enum {
     awaiting_body,
 };
 
-const RequestAccumulator = struct {
+const RequestBuffer = struct {
     state: RequestState = .awaiting_meta,
     meta_parse_result: ?std.json.Parsed(RequestMeta) = null,
     body: std.ArrayList(u8),
     allocator: std.mem.Allocator,
 
-    pub fn init(allocator: std.mem.Allocator) RequestAccumulator {
+    pub fn init(allocator: std.mem.Allocator) RequestBuffer {
         return .{
             .state = .awaiting_meta,
             .meta_parse_result = null,
@@ -40,14 +40,14 @@ const RequestAccumulator = struct {
         };
     }
 
-    pub fn deinit(self: *RequestAccumulator) void {
+    pub fn deinit(self: *RequestBuffer) void {
         if (self.meta_parse_result) |*meta| {
             meta.deinit();
         }
         self.body.deinit(); // Frees underlying memory
     }
 
-    pub fn reset(self: *RequestAccumulator) void {
+    pub fn reset(self: *RequestBuffer) void {
         if (self.meta_parse_result) |*meta| {
             meta.deinit();
             self.meta_parse_result = null;
@@ -62,7 +62,8 @@ const Handler = struct {
     client: *websocket.Client,
     http_client: http.Client,
     target_port: u16,
-    accumulator: RequestAccumulator,
+
+    request_buffer: RequestBuffer,
 
     pub fn init(allocator: std.mem.Allocator, ws_client: *websocket.Client, target_port: u16) Handler {
         return .{
@@ -70,50 +71,63 @@ const Handler = struct {
             .client = ws_client,
             .http_client = http.Client{ .allocator = allocator },
             .target_port = target_port,
-            .accumulator = RequestAccumulator.init(allocator),
+            .accumulator = RequestBuffer.init(allocator),
         };
     }
 
     pub fn deinit(self: *Handler) void {
         self.http_client.deinit();
-        self.accumulator.deinit();
+        self.request_buffer.deinit();
     }
 
+    /// handle is the mandatory function interface for websocket library
     pub fn handle(h: *Handler, message: websocket.Message) !void {
-        switch (h.accumulator.state) {
+        // handle:
+        // 1. Decodes the websocket messages received from the tunnel
+        // 2. Adds them to the request_buffer
+        // 3. Triggers forwarding when the request is ready
+
+        // Note this currently assumes one request at a time
+        switch (h.request_buffer.state) {
             .awaiting_meta => {
                 if (message.type != .text) return error.ExpectedMetadata;
                 const parse_result = try std.json.parseFromSlice(RequestMeta, h.allocator, message.data, .{});
-                h.accumulator.meta_parse_result = parse_result;
-                h.accumulator.state = .awaiting_body;
+                h.request_buffer.meta_parse_result = parse_result;
+                h.request_buffer.state = .awaiting_body;
             },
             .awaiting_body => {
                 if (message.type == .text) {
+                    // text message "end" is sent to mark the end of a request body
                     if (std.mem.eql(u8, message.data, "end")) {
-                        // text message "end" is sent to mark the end of a request body
-                        defer h.accumulator.reset();
+                        defer h.request_buffer.reset(); // Frees up the accumulator for the next request
                         try h.forwardRequest();
                     } else {
                         return error.UnexpectedTextMessage;
                     }
                 } else if (message.type == .binary) {
-                    try h.accumulator.body.appendSlice(message.data);
+                    // binary messages are body chunks
+                    try h.request_buffer.body.appendSlice(message.data);
                 } else {
                     return error.UnexpectedMessageType;
                 }
             },
         }
     }
+
     fn forwardRequest(h: *Handler) !void {
+        // forwardRequest:
+        // 1. Sends the request to the localhost server over http
+        // 2. Receives the response over http
+        // 3. Encodes that response as websoket messages and sends them up the tunnel
+
         var arena = std.heap.ArenaAllocator.init(h.allocator);
         defer arena.deinit();
         var allocator = arena.allocator();
 
-        const meta_result = h.accumulator.meta_parse_result orelse return error.NoMetadata;
+        const meta_result = h.request_buffer.meta_parse_result orelse return error.NoMetadata;
         const meta = meta_result.value;
 
-        // Start building our http request
-
+        // Build http request
         var headers_buf: [MAX_HEADERS_SIZE]u8 = undefined;
         const full_uri = try std.fmt.allocPrint(allocator, "http://localhost:{d}{s}?{s}", .{
             h.target_port,
@@ -124,6 +138,7 @@ const Handler = struct {
         const uri = try std.Uri.parse(full_uri);
         const method = std.meta.stringToEnum(http.Method, meta.method) orelse return error.InvalidMethod;
 
+        // Start http request
         var req = try h.http_client.open(method, uri, .{ .server_header_buffer = &headers_buf });
         defer req.deinit();
 
@@ -131,16 +146,16 @@ const Handler = struct {
 
         // Send body if we have one
         try req.send();
-        if (h.accumulator.body.items.len > 0) {
-            std.debug.print("Forwarding request body: {d} bytes\n", .{h.accumulator.body.items.len});
-            try req.writeAll(h.accumulator.body.items);
+        if (h.request_buffer.body.items.len > 0) {
+            std.debug.print("Forwarding request body: {d} bytes\n", .{h.request_buffer.body.items.len});
+            try req.writeAll(h.request_buffer.body.items);
         }
         try req.finish();
         try req.wait();
 
         // Start building our websocket responses
 
-        // Send response meta as JSON
+        // Response meta sends up tunnel as json string
         const response_meta = ResponseMeta{
             .requestId = meta.requestId,
             .status = @intCast(@intFromEnum(req.response.status)),
@@ -152,7 +167,7 @@ const Handler = struct {
         try h.client.write(json_writer.items);
         std.debug.print("Done returning response meta\n", .{});
 
-        // Send response body if we have one
+        // Body sends up tunnel as a sequence of binary messages
         if (req.response.content_length) |content_length| {
             var body_buf = try allocator.alloc(u8, content_length);
             const body_len = try req.readAll(body_buf);
@@ -172,7 +187,7 @@ const Handler = struct {
             }
         }
 
-        // Send end signal
+        // End signal marks the end of the response
         var end_msg = [_]u8{ 'e', 'n', 'd' };
         try h.client.write(&end_msg);
     }
