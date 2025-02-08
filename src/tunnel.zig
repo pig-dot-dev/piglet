@@ -70,7 +70,7 @@ const Handler = struct {
             .client = ws_client,
             .http_client = http.Client{ .allocator = allocator },
             .target_port = target_port,
-            .accumulator = RequestBuffer.init(allocator),
+            .request_buffer = RequestBuffer.init(allocator),
         };
     }
 
@@ -173,7 +173,11 @@ const Handler = struct {
             std.debug.print("Returning body of size: {d} bytes\n", .{body_len});
 
             // Send in chunks
-            const CHUNK_SIZE = 16 * 1024; // 16KB chunks
+            // this 16kb limit was a day-long bug to figure out
+            // the websocket library seems to send an "unexpeted EOF" if chunks are too big
+            // perhaps it has a buffer limit? despite me setting a huge buffer.
+            // surely will be improved over time.
+            const CHUNK_SIZE = 16 * 1024;
             if (body_len > 0) {
                 var offset: usize = 0;
                 while (offset < body_len) {
@@ -233,7 +237,7 @@ pub fn startControlTunnel(allocator: std.mem.Allocator, options: TunnelOptions) 
         .tls = true,
         .ca_bundle = bundle,
         .max_size = 1024 * 1024 * 10, // 10MB max message size
-        .buffer_size = 1024 * 64, // 64KB buffer size
+        .buffer_size = 1024 * 256, // 256KB buffer size
     });
     defer client.deinit();
 
