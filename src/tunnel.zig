@@ -159,7 +159,7 @@ const Handler = struct {
             std.debug.print("Returning body of size: {d} bytes\n", .{body_len});
 
             // Send in chunks
-            const CHUNK_SIZE = 16 * 1024; // 32KB chunks
+            const CHUNK_SIZE = 16 * 1024; // 16KB chunks
             if (body_len > 0) {
                 var offset: usize = 0;
                 while (offset < body_len) {
