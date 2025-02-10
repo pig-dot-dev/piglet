@@ -147,7 +147,6 @@ const Handler = struct {
         // Send body if we have one
         try req.send();
         if (h.request_buffer.body.items.len > 0) {
-            std.debug.print("Forwarding request body: {d} bytes\n", .{h.request_buffer.body.items.len});
             try req.writeAll(h.request_buffer.body.items);
         }
         try req.finish();
@@ -163,15 +162,12 @@ const Handler = struct {
         };
         var json_writer = std.ArrayList(u8).init(allocator);
         try std.json.stringify(response_meta, .{}, json_writer.writer());
-        std.debug.print("Returning response meta: {s}\n", .{json_writer.items});
         try h.client.write(json_writer.items);
-        std.debug.print("Done returning response meta\n", .{});
 
         // Body sends up tunnel as a sequence of binary messages
         if (req.response.content_length) |content_length| {
             var body_buf = try allocator.alloc(u8, content_length);
             const body_len = try req.readAll(body_buf);
-            std.debug.print("Returning body of size: {d} bytes\n", .{body_len});
 
             // Send in chunks
             // this 16kb limit was a day-long bug to figure out
@@ -184,7 +180,6 @@ const Handler = struct {
                 while (offset < body_len) {
                     const remaining = body_len - offset;
                     const chunk_size = @min(CHUNK_SIZE, remaining);
-                    std.debug.print("Returning chunk of size: {d} bytes\n", .{chunk_size});
                     try h.client.writeBin(body_buf[offset .. offset + chunk_size]);
                     offset += chunk_size;
                 }
@@ -254,7 +249,6 @@ pub fn startControlTunnel(allocator: std.mem.Allocator, options: TunnelOptions) 
         config.fingerprint,
         config.version,
     });
-    std.debug.print("Headers: {s}\n", .{headers_str});
     defer allocator.free(headers_str);
 
     try client.handshake(control_path, .{
