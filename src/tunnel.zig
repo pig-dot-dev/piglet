@@ -1,5 +1,6 @@
 const std = @import("std");
 const websocket = @import("websocket");
+const getConfig = @import("config.zig").getConfig;
 const httpz = @import("httpz");
 const json = std.json;
 const http = std.http;
@@ -212,6 +213,9 @@ pub const TunnelOptions = struct {
 pub fn startControlTunnel(allocator: std.mem.Allocator, options: TunnelOptions) !void {
     const control_path = "/tunnel/ws";
 
+    var config = try getConfig(allocator);
+    defer config.deinit(allocator);
+
     // Create a certificate bundle for TLS
     var bundle = std.crypto.Certificate.Bundle{};
     try bundle.rescan(allocator);
@@ -241,13 +245,16 @@ pub fn startControlTunnel(allocator: std.mem.Allocator, options: TunnelOptions) 
     });
     defer client.deinit();
 
-    const headers_str = try std.fmt.allocPrint(allocator, "Host: {s}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13{s}", .{
+    const headers_str = try std.fmt.allocPrint(allocator, "Host: {s}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13{s}\r\nX-PIGLET-FINGERPRINT: {s}\r\nX-PIGLET-VERSION: {s}\r\n", .{
         host,
         if (options.bearer_token) |token|
             try std.fmt.allocPrint(allocator, "\r\nAuthorization: Bearer {s}", .{token})
         else
             "",
+        config.fingerprint,
+        config.version,
     });
+    std.debug.print("Headers: {s}\n", .{headers_str});
     defer allocator.free(headers_str);
 
     try client.handshake(control_path, .{
