@@ -267,9 +267,15 @@ pub fn startControlTunnel(allocator: std.mem.Allocator, options: TunnelOptions) 
         host = host[0 .. host.len - 1];
     }
 
+    const min_sleep_ns: u64 = 1;
+    const max_sleep_ns: u64 = 16 * std.time.ns_per_s;
+    var sleep_ns: u64 = min_sleep_ns;
+
     while (true) : ({
         // Continue block; runs between retries
         std.debug.print("Retrying control connection\n", .{});
+        std.time.sleep(sleep_ns);
+        sleep_ns = std.math.min(sleep_ns * 2, max_sleep_ns);
     }) {
         var client = websocket.connect(allocator, host, options.control_port, .{
             .tls = true,
@@ -304,6 +310,9 @@ pub fn startControlTunnel(allocator: std.mem.Allocator, options: TunnelOptions) 
                 continue;
             },
         };
+
+        // Connection successful (for now), reset sleep time
+        sleep_ns = min_sleep_ns;
 
         var handler = Handler.init(allocator, &client, options.target_port);
 
