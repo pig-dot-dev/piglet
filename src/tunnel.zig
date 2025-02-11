@@ -267,32 +267,53 @@ pub fn startControlTunnel(allocator: std.mem.Allocator, options: TunnelOptions) 
         host = host[0 .. host.len - 1];
     }
 
-    var client = try websocket.connect(allocator, host, options.control_port, .{
-        .tls = true,
-        .ca_bundle = bundle,
-        .max_size = 1024 * 1024 * 10, // 10MB max message size
-        .buffer_size = 1024 * 256, // 256KB buffer size
-    });
-    defer client.deinit();
+    while (true) : ({
+        // Continue block; runs between retries
+        std.debug.print("Retrying control connection\n", .{});
+    }) {
+        var client = websocket.connect(allocator, host, options.control_port, .{
+            .tls = true,
+            .ca_bundle = bundle,
+            .max_size = 1024 * 1024 * 10, // 10MB max message size
+            .buffer_size = 1024 * 256, // 256KB buffer size
+        }) catch |err| switch (err) {
+            else => {
+                std.debug.print("Failed to connect to control server: {s}\n", .{@errorName(err)});
+                continue;
+            },
+        };
+        defer client.deinit();
 
-    const headers_str = try std.fmt.allocPrint(allocator, "Host: {s}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13{s}\r\nX-PIGLET-FINGERPRINT: {s}\r\nX-PIGLET-VERSION: {s}\r\n", .{
-        host,
-        if (options.bearer_token) |token|
-            try std.fmt.allocPrint(allocator, "\r\nAuthorization: Bearer {s}", .{token})
-        else
-            "",
-        config.fingerprint,
-        config.version,
-    });
-    defer allocator.free(headers_str);
+        const headers_str = try std.fmt.allocPrint(allocator, "Host: {s}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13{s}\r\nX-PIGLET-FINGERPRINT: {s}\r\nX-PIGLET-VERSION: {s}\r\n", .{
+            host,
+            if (options.bearer_token) |token|
+                try std.fmt.allocPrint(allocator, "\r\nAuthorization: Bearer {s}", .{token})
+            else
+                "",
+            config.fingerprint,
+            config.version,
+        });
+        defer allocator.free(headers_str);
 
-    try client.handshake(control_path, .{
-        .timeout_ms = 5000,
-        .headers = headers_str,
-    });
+        client.handshake(control_path, .{
+            .timeout_ms = 5000,
+            .headers = headers_str,
+        }) catch |err| switch (err) {
+            else => {
+                std.debug.print("Failed to handshake with control server: {s}\n", .{@errorName(err)});
+                continue;
+            },
+        };
 
-    var handler = Handler.init(allocator, &client, options.target_port);
+        var handler = Handler.init(allocator, &client, options.target_port);
 
-    std.debug.print("Connected to control server\n", .{});
-    return try client.readLoop(&handler);
+        std.debug.print("Connected to control server\n", .{});
+        client.readLoop(&handler) catch |err| switch (err) {
+            else => {
+                std.debug.print("Failed to read from control server: {s}\n", .{@errorName(err)});
+                continue;
+            },
+        };
+    }
+    return error.ConnectError;
 }
