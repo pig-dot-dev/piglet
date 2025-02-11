@@ -70,7 +70,7 @@ computer/
 - POST `/computer/input/keyboard/type`
   - Requires json body: `{ text: string }`
 - POST `/computer/input/keyboard/key`
-  - Requires json body: `{ key: string }`
+  - Requires json body: `{ text: string }`
 - GET `/computer/input/mouse/position`
   - Returns json body: `{ x: number, y: number }`
 - POST `/computer/input/mouse/move`
