@@ -100,13 +100,19 @@ const Handler = struct {
                     // text message "end" is sent to mark the end of a request body
                     if (std.mem.eql(u8, message.data, "end")) {
                         defer h.request_buffer.reset(); // Frees up the accumulator for the next request
-                        try h.forwardRequest();
+                        h.forwardRequest() catch |err| {
+                            std.debug.print("Error forwarding request: {s}\n", .{@errorName(err)});
+                            return err;
+                        };
                     } else {
                         return error.UnexpectedTextMessage;
                     }
                 } else if (message.type == .binary) {
                     // binary messages are body chunks
-                    try h.request_buffer.body.appendSlice(message.data);
+                    h.request_buffer.body.appendSlice(message.data) catch |err| {
+                        std.debug.print("Error appending body chunk: {s}\n", .{@errorName(err)});
+                        return err;
+                    };
                 } else {
                     return error.UnexpectedMessageType;
                 }
@@ -134,17 +140,36 @@ const Handler = struct {
             meta.path,
             meta.query,
         });
+        defer allocator.free(full_uri);
 
         const uri = try std.Uri.parse(full_uri);
         const method = std.meta.stringToEnum(http.Method, meta.method) orelse return error.InvalidMethod;
 
         // Start http request
-        var req = try h.http_client.open(method, uri, .{ .server_header_buffer = &headers_buf });
+        var req = try h.http_client.open(method, uri, .{
+            .server_header_buffer = &headers_buf,
+
+            // The original headers are copied into the request
+            .extra_headers = blk: {
+                var headers = try allocator.alloc(http.Header, meta.headers.map.count());
+                var i: usize = 0;
+                var it = meta.headers.map.iterator();
+                while (it.next()) |entry| {
+                    headers[i] = .{
+                        .name = entry.key_ptr.*,
+                        .value = entry.value_ptr.*,
+                    };
+                    i += 1;
+                }
+                break :blk headers;
+            },
+        });
         defer req.deinit();
 
-        // TODO: Set headers from meta
+        if (h.request_buffer.body.items.len > 0) {
+            req.transfer_encoding = .{ .content_length = h.request_buffer.body.items.len };
+        }
 
-        // Send body if we have one
         try req.send();
         if (h.request_buffer.body.items.len > 0) {
             try req.writeAll(h.request_buffer.body.items);
@@ -153,13 +178,23 @@ const Handler = struct {
         try req.wait();
 
         // Start building our websocket responses
+        var header_it = req.response.iterateHeaders();
+        var header_hashmap = std.StringArrayHashMapUnmanaged([]const u8){};
+        while (header_it.next()) |header| {
+            try header_hashmap.put(allocator, header.name, header.value);
+        }
 
         // Response meta sends up tunnel as json string
         const response_meta = ResponseMeta{
             .requestId = meta.requestId,
             .status = @intCast(@intFromEnum(req.response.status)),
-            .headers = null,
+            .headers = .{
+                .map = header_hashmap,
+            },
         };
+
+        std.debug.print("{s} {s} -> {d}\n", .{ meta.method, meta.path, @intFromEnum(req.response.status) });
+
         var json_writer = std.ArrayList(u8).init(allocator);
         try std.json.stringify(response_meta, .{}, json_writer.writer());
         try h.client.write(json_writer.items);
