@@ -3,8 +3,13 @@ const std = @import("std");
 // Zig 0.13.0 required.
 
 pub fn build(b: *std.Build) void {
+    const version = "0.0.1";
+
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
+
+    const build_options = b.addOptions();
+    build_options.addOption([]const u8, "version", version);
 
     const exe = b.addExecutable(.{
         .name = "piglet",
@@ -12,11 +17,20 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
     const httpz = b.dependency("httpz", .{
         .target = target,
         .optimize = optimize,
     });
     exe.root_module.addImport("httpz", httpz.module("httpz"));
+
+    const websocket = b.dependency("websocket", .{
+        .target = target,
+        .optimize = optimize,
+    });
+    exe.root_module.addImport("websocket", websocket.module("websocket"));
+
+    exe.root_module.addOptions("build_config", build_options);
 
     const zigimg_dependency = b.dependency("zigimg", .{
         .target = target,
