@@ -121,5 +121,4 @@ We built Piglet to drive our own cloud machines, but this opens an incredible op
 You can use Piglet standalone, no Pig account needed.
 
 For those who want the full Pig experience, we're now working on:
-- Allowing your Piglet(s) to subscribe to Pig cloud to accept and run jobs, securely across the internet.
 - Migrating Pig Cloud to also run Piglets, offering the same OS-level access to users of our managed machines.

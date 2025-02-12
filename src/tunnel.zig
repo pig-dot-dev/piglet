@@ -275,7 +275,7 @@ pub fn startControlTunnel(allocator: std.mem.Allocator, options: TunnelOptions) 
         // Continue block; runs between retries
         std.debug.print("Retrying control connection\n", .{});
         std.time.sleep(sleep_ns);
-        sleep_ns = std.math.min(sleep_ns * 2, max_sleep_ns);
+        sleep_ns = @min(sleep_ns * 2, max_sleep_ns);
     }) {
         var client = websocket.connect(allocator, host, options.control_port, .{
             .tls = true,
