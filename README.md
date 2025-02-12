@@ -29,7 +29,7 @@ $toolDir = "$env:USERPROFILE\.piglet"
 New-Item -ItemType Directory -Force -Path $toolDir
 
 # Download piglet
-Invoke-WebRequest -Uri "https://github.com/pig-dot-dev/piglet/releases/download/v0.0.0/piglet.exe" -OutFile "$toolDir\piglet.exe"
+Invoke-WebRequest -Uri "https://github.com/pig-dot-dev/piglet/releases/download/v0.0.1/piglet.exe" -OutFile "$toolDir\piglet.exe"
 
 # Add to PATH if not already there
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
@@ -44,6 +44,12 @@ Piglet can then be started with:
 ```powershell
 piglet
 ```
+
+Or subscribed for remote use via Pig cloud:
+```powershell
+piglet  --control-host piglet.pig.dev --pig-secret-key SK-YOUR-SECRET-KEY
+```
+> [Get your API key here](https://pig.dev/alpha)
 
 ### API
 
