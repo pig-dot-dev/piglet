@@ -88,7 +88,7 @@ cd ffmpeg
 
 # Configure FFmpeg with x264 and PNG support
 PKG_CONFIG_PATH="/usr/local/x86_64-w64-mingw32/lib/pkgconfig" \
-CFLAGS="-I/usr/local/x86_64-w64-mingw32/include -include stdint.h" \
+CFLAGS="-I/usr/local/x86_64-w64-mingw32/include -include stdint.h -DWIN32_LEAN_AND_MEAN -DHAVE_WIN32_THREADS=1 -DPTW32_STATIC_LIB -D_WIN32_WINNT=0x0601" \
 LDFLAGS="-L/usr/local/x86_64-w64-mingw32/lib" \
 ./configure \
   --prefix=./windows-build \
@@ -107,6 +107,9 @@ LDFLAGS="-L/usr/local/x86_64-w64-mingw32/lib" \
   --disable-avdevice \
   --disable-postproc \
   --disable-network \
+  --enable-w32threads \
+  --disable-pthreads \
+  --enable-cross-compile \
   --enable-zlib \
   --enable-protocol=file \
   --enable-decoder=h264 \

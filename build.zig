@@ -43,10 +43,45 @@ pub fn build(b: *std.Build) void {
     exe.addSystemIncludePath(std.Build.LazyPath{ .cwd_relative = "/opt/homebrew/Cellar/mingw-w64/12.0.0_1/toolchain-x86_64/x86_64-w64-mingw32/include" });
     exe.linkLibC();
 
+    // Add FFmpeg include and lib paths
+    exe.addSystemIncludePath(b.path("vendor/ffmpeg/include"));
+    exe.addLibraryPath(b.path("vendor/ffmpeg/lib"));
+
     const target_info = target.result;
     if (target_info.os.tag == .windows) {
-        exe.linkSystemLibrary("d3d11"); // Compatible down to Windows 7
+        // Add MinGW library paths
+        exe.addLibraryPath(.{ .cwd_relative = "/usr/local/x86_64-w64-mingw32/lib" });
+        exe.addLibraryPath(.{ .cwd_relative = "/opt/homebrew/Cellar/mingw-w64/12.0.0_2/toolchain-x86_64/x86_64-w64-mingw32/lib" });
+
+        // Windows system libraries - add these before FFmpeg
+        exe.linkSystemLibrary("kernel32"); // For windows time functions
+        exe.linkSystemLibrary("bcrypt"); // For crypto functions
+        exe.linkSystemLibrary("ole32"); // For COM/Media Foundation
+        exe.linkSystemLibrary("winmm"); // For additional time functions
+        exe.linkSystemLibrary("ntdll"); // For additional system functions
+
+        // Add static winpthreads for POSIX time functions
+        exe.addObjectFile(.{ .cwd_relative = "/opt/homebrew/Cellar/mingw-w64/12.0.0_2/toolchain-x86_64/x86_64-w64-mingw32/lib/libwinpthread.a" });
+
+        // Define Windows threading model to match FFmpeg build
+        exe.defineCMacro("WIN32_LEAN_AND_MEAN", null);
+        exe.defineCMacro("HAVE_WIN32_THREADS", "1");
+        exe.defineCMacro("PTWS32_STATIC_LIB", "1");
+        exe.defineCMacro("_WIN32_WINNT", "0x0601"); // Windows 7 and above
+
+        // Third-party libraries (from MinGW)
+        exe.linkSystemLibrary("z"); // zlib for compression
+        exe.addObjectFile(.{ .cwd_relative = "/usr/local/x86_64-w64-mingw32/lib/libx264.a" });
+        exe.linkSystemLibrary("d3d11"); // Already present
     }
+
+    // Link FFmpeg static libraries
+    exe.linkSystemLibrary("avcodec");
+    exe.linkSystemLibrary("avfilter");
+    exe.linkSystemLibrary("avformat");
+    exe.linkSystemLibrary("avutil");
+    exe.linkSystemLibrary("swresample");
+    exe.linkSystemLibrary("swscale");
 
     b.installArtifact(exe);
 
