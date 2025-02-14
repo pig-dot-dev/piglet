@@ -10,22 +10,25 @@ Requirements:
 - Zig 0.13.0
 - ZLS 0.13.0
 - A Windows machine, or a MacOS machine with Parallels installed. I'm currently developing this via Parallels.
+- FFmpeg libraries built for Windows cross-compilation (see `contributing/building_ffmpeg.md`)
 
-On mac, the build script expects 
-```
+On mac, you'll need:
+```bash
 brew install mingw-w64
 ```
 Make sure you brew install the same version found in the `build.zig` file.
-This pulls in the windows headers for ZLS. 
-All libraries currently used are standard and dynamically linked, so you just need the headers for your language server to work.
+This pulls in the Windows headers for ZLS and provides necessary libraries for cross-compilation.
+
+## Building FFmpeg
+Before building Piglet, you must first build FFmpeg for Windows. See the detailed instructions in `contributing/building_ffmpeg.md`. This is a crucial step as Piglet requires specific FFmpeg libraries built with certain configurations.
 
 ## Building
-```
+```bash
 # for debug. Note image operations may be slow.
 zig build -Dtarget=x86_64-windows-gnu
 
 # for release
-zig build -Dtarget=x86_64-windows-gnu -Drelease-safe
+zig build -Dtarget=x86_64-windows-gnu --release=safe
 ```
 
 ## Testing
