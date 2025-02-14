@@ -71,8 +71,8 @@ pub fn build(b: *std.Build) void {
 
         // Third-party libraries (from MinGW)
         exe.linkSystemLibrary("z"); // zlib for compression
-        exe.addObjectFile(.{ .cwd_relative = "/usr/local/x86_64-w64-mingw32/lib/libx264.a" });
-        exe.linkSystemLibrary("d3d11"); // Already present
+        exe.addObjectFile(.{ .cwd_relative = "/usr/local/x86_64-w64-mingw32/lib/libx264.a" }); // you'll likely need to build x264 yourself, see contributing/building_ffmpeg.md
+        exe.linkSystemLibrary("d3d11");
     }
 
     // Link FFmpeg static libraries
