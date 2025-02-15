@@ -9,7 +9,8 @@ display: Display,
 // keyboard: Keyboard,
 // mouse: Mouse,
 
-pub fn init(_: std.mem.Allocator) !Computer {
+pub fn init(allocator: std.mem.Allocator) !Computer {
+    _ = allocator;
     const display = try Display.init();
     // const keyboard = Keyboard.new(allocator);
     // const mouse = Mouse.new(display.width(), display.height());

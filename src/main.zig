@@ -11,6 +11,8 @@ const Computer = @import("Computer.zig");
 
 const FFMPEG = @import("ffmpeg/FFMPEG.zig");
 
+const Encoder = @import("display/Encoder.zig");
+
 // pub fn main() !void {
 //     var GPA = std.heap.GeneralPurposeAllocator(.{}){};
 //     defer _ = GPA.deinit();
@@ -70,4 +72,13 @@ const FFMPEG = @import("ffmpeg/FFMPEG.zig");
 pub fn main() !void {
     var computer = try Computer.init(std.heap.page_allocator);
     defer computer.deinit();
+
+    var image = try computer.display.screenshot(std.heap.page_allocator);
+    defer image.deinit();
+
+    // save bytes to png
+    try std.fs.cwd().writeFile(.{
+        .data = image.bytes,
+        .sub_path = "screenshot.png",
+    });
 }

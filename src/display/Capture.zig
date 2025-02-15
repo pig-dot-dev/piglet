@@ -21,7 +21,8 @@ pub fn init() !Capture {
 
     // Initialize format context
     var format_ctx: ?*c.AVFormatContext = null;
-    const input_format = c.av_find_input_format("gdigrab") orelse return error.NoGdigrab;
+    const input_format = c.av_find_input_format("gdigrab");
+    if (input_format == null) return error.NoGdigrab;
 
     // Open the input device (screen capture)
     const ret = c.avformat_open_input(
@@ -40,43 +41,57 @@ pub fn init() !Capture {
     }
 
     // Find video stream
-    var stream: [*c]c.struct_AVStream = undefined;
-    var codecpar: *c.struct_AVCodecParameters = undefined;
-    const stream_index = blk: {
-        var i: c_uint = 0;
-        while (i < format_ctx.?.nb_streams) : (i += 1) {
-            stream = format_ctx.?.streams[i];
-            codecpar = stream.*.codecpar;
-            if (codecpar.*.codec_type == c.AVMEDIA_TYPE_VIDEO) {
-                break :blk @as(c_int, @intCast(i));
-            }
+    var stream_index: c_int = -1;
+    var i: c_uint = 0;
+    while (i < format_ctx.?.nb_streams) : (i += 1) {
+        if (format_ctx.?.streams[i].*.codecpar.*.codec_type == c.AVMEDIA_TYPE_VIDEO) {
+            stream_index = @intCast(i);
+            break;
         }
+    }
+    if (stream_index == -1) {
+        c.avformat_close_input(&format_ctx);
         return error.NoVideoStream;
-    };
+    }
 
-    // Get decoder
+    // Get codec parameters
+    const codecpar = format_ctx.?.streams[@intCast(stream_index)].*.codecpar;
+
+    // Find decoder
     const codec = c.avcodec_find_decoder(codecpar.*.codec_id);
+    if (codec == null) {
+        c.avformat_close_input(&format_ctx);
+        return error.NoDecoder;
+    }
 
-    // Allocate codec context
+    // Create codec context
     var codec_ctx = c.avcodec_alloc_context3(codec);
-    errdefer c.avcodec_free_context(&codec_ctx);
+    if (codec_ctx == null) {
+        c.avformat_close_input(&format_ctx);
+        return error.CodecContextFailed;
+    }
 
-    // Copy params from stream
-    if (c.avcodec_parameters_to_context(
-        codec_ctx,
-        codecpar,
-    ) < 0) return error.CodecParamsFailed;
+    // Fill codec context from parameters
+    if (c.avcodec_parameters_to_context(codec_ctx, codecpar) < 0) {
+        c.avcodec_free_context(&codec_ctx);
+        c.avformat_close_input(&format_ctx);
+        return error.CodecParamsFailed;
+    }
 
     // Open codec
-    if (c.avcodec_open2(codec_ctx, codec, null) < 0) return error.CodecOpenFailed;
+    if (c.avcodec_open2(codec_ctx, codec, null) < 0) {
+        c.avcodec_free_context(&codec_ctx);
+        c.avformat_close_input(&format_ctx);
+        return error.CodecOpenFailed;
+    }
 
     return Capture{
-        .format_ctx = format_ctx.?,
+        .format_ctx = format_ctx,
         .codec_ctx = codec_ctx,
         .stream_index = stream_index,
         .dimensions = .{
-            .width = codec_ctx.*.width,
-            .height = codec_ctx.*.height,
+            .width = codecpar.*.width,
+            .height = codecpar.*.height,
         },
     };
 }
@@ -86,9 +101,46 @@ pub fn deinit(self: *Capture) void {
     c.avformat_close_input(&self.format_ctx);
 }
 
-/// Get a single frame from the capture pipeline
+/// Get a single frame from the capture device
 /// Caller owns the returned frame and must call frame.deinit()
-pub fn getFrame(_: Capture) !Frame {
-    // TODO: Grab and decode a frame
-    @panic("TODO");
+pub fn getFrame(self: Capture) !Frame {
+    // Allocate packet for reading
+    var packet = c.av_packet_alloc();
+    if (packet == null) return error.PacketAllocFailed;
+    defer c.av_packet_free(&packet);
+
+    // Read frames until we get a video frame
+    while (true) {
+        const ret = c.av_read_frame(self.format_ctx, packet);
+        if (ret < 0) return error.ReadFrameFailed;
+        defer c.av_packet_unref(packet);
+
+        // Skip packets from other streams
+        if (packet.*.stream_index != self.stream_index) continue;
+
+        // Allocate frame for decoding
+        var frame = c.av_frame_alloc();
+        if (frame == null) return error.FrameAllocFailed;
+        errdefer c.av_frame_free(&frame);
+
+        // Send packet to decoder
+        if (c.avcodec_send_packet(self.codec_ctx, packet) < 0) return error.SendPacketFailed;
+
+        // Get decoded frame
+        const decode_ret = c.avcodec_receive_frame(self.codec_ctx, frame);
+        if (decode_ret < 0) {
+            if (decode_ret == c.AVERROR(c.EAGAIN)) continue;
+            return error.ReceiveFrameFailed;
+        }
+
+        // Successfully got a frame, convert it to RGB24
+        var raw_frame = Frame.init(frame, .BGR0);
+        const rgb_frame = try raw_frame.convertTo(.{
+            .format = .RGB24,
+            .max_width = null,
+            .max_height = null,
+        });
+
+        return rgb_frame;
+    }
 }
