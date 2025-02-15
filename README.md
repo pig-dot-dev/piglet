@@ -29,7 +29,7 @@ $toolDir = "$env:USERPROFILE\.piglet"
 New-Item -ItemType Directory -Force -Path $toolDir
 
 # Download piglet
-Invoke-WebRequest -Uri "https://github.com/pig-dot-dev/piglet/releases/download/v0.0.1/piglet.exe" -OutFile "$toolDir\piglet.exe"
+Invoke-WebRequest -Uri "https://github.com/pig-dot-dev/piglet/releases/download/v0.0.2/piglet.exe" -OutFile "$toolDir\piglet.exe"
 
 # Add to PATH if not already there
 $userPath = [Environment]::GetEnvironmentVariable("Path", "User")
