@@ -1,0 +1,14 @@
+prefix=./windows-build
+exec_prefix=${prefix}
+libdir=./windows-build/lib
+includedir=./windows-build/include
+
+Name: libavcodec
+Description: FFmpeg codec library
+Version: 61.33.102
+Requires: libswresample >= 5.4.100, libavutil >= 59.56.100
+Requires.private: 
+Conflicts:
+Libs: -L${libdir}  -lavcodec -lm -latomic -L/usr/local/x86_64-w64-mingw32/lib -lx264 -lmfuuid -lole32 -lstrmiids -lole32 -luser32 -L/usr/local/x86_64-w64-mingw32/lib -lz
+Libs.private: 
+Cflags: -I${includedir}

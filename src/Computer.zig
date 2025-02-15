@@ -10,7 +10,7 @@ keyboard: Keyboard,
 mouse: Mouse,
 
 pub fn init(allocator: std.mem.Allocator) !Computer {
-    var display = try Display.init();
+    const display = try Display.init();
     const keyboard = Keyboard.new(allocator);
     const mouse = Mouse.new(display.width(), display.height());
     return .{

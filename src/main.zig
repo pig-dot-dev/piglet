@@ -62,5 +62,5 @@ pub fn main() !void {
     }
     defer tunnel_thread.join();
 
-    try server.Run(allocator, &computer, target_port);
+    try server.run(allocator, &computer, target_port);
 }

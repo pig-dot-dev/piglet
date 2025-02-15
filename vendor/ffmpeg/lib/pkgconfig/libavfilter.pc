@@ -1,0 +1,14 @@
+prefix=./windows-build
+exec_prefix=${prefix}
+libdir=./windows-build/lib
+includedir=./windows-build/include
+
+Name: libavfilter
+Description: FFmpeg audio/video filtering library
+Version: 10.9.100
+Requires: libswscale >= 8.13.100, libavformat >= 61.9.107, libavcodec >= 61.33.102, libswresample >= 5.4.100, libavutil >= 59.56.100
+Requires.private: 
+Conflicts:
+Libs: -L${libdir}  -lavfilter -lm -latomic
+Libs.private: 
+Cflags: -I${includedir}

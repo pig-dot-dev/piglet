@@ -3,7 +3,7 @@ const std = @import("std");
 // Zig 0.13.0 required.
 
 pub fn build(b: *std.Build) void {
-    const version = "0.0.1";
+    const version = "0.0.2";
 
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -32,21 +32,60 @@ pub fn build(b: *std.Build) void {
 
     exe.root_module.addOptions("build_config", build_options);
 
-    const zigimg_dependency = b.dependency("zigimg", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    exe.root_module.addImport("zigimg", zigimg_dependency.module("zigimg"));
+    // Add FFmpeg include and lib paths
+    exe.addSystemIncludePath(b.path("vendor/ffmpeg/include"));
+    exe.addSystemIncludePath(b.path("vendor/ffmpeg/include/ffmpeg")); // Add FFmpeg include paths for FFMPEG.zig
+    exe.addLibraryPath(b.path("vendor/ffmpeg/lib"));
 
     // Add MinGW include paths - these will bring in all the Windows headers
     // Really only helpful for the Zig language server on macOS
-    exe.addSystemIncludePath(std.Build.LazyPath{ .cwd_relative = "/opt/homebrew/Cellar/mingw-w64/12.0.0_1/toolchain-x86_64/x86_64-w64-mingw32/include" });
+    exe.addSystemIncludePath(std.Build.LazyPath{ .cwd_relative = "/opt/homebrew/Cellar/mingw-w64/12.0.0_2/toolchain-x86_64/x86_64-w64-mingw32/include" });
     exe.linkLibC();
 
     const target_info = target.result;
     if (target_info.os.tag == .windows) {
-        exe.linkSystemLibrary("d3d11"); // Compatible down to Windows 7
+        // Add MinGW library paths
+        exe.addLibraryPath(.{ .cwd_relative = "/usr/local/x86_64-w64-mingw32/lib" });
+        exe.addLibraryPath(.{ .cwd_relative = "/opt/homebrew/Cellar/mingw-w64/12.0.0_2/toolchain-x86_64/x86_64-w64-mingw32/lib" });
+
+        // Windows system libraries - add these before FFmpeg
+        exe.linkSystemLibrary("kernel32"); // For windows time functions
+        exe.linkSystemLibrary("bcrypt"); // For crypto functions
+        exe.linkSystemLibrary("shell32"); // For shell functions
+        exe.linkSystemLibrary("shlwapi"); // For additional shell functions
+        exe.linkSystemLibrary("ole32"); // For COM/Media Foundation
+        exe.linkSystemLibrary("oleaut32"); // For OLE Automation
+        exe.linkSystemLibrary("winmm"); // For additional time functions
+        exe.linkSystemLibrary("ntdll"); // For additional system functions
+        exe.linkSystemLibrary("gdi32"); // For screen capture
+        exe.linkSystemLibrary("vfw32"); // For Video for Windows
+        exe.linkSystemLibrary("ws2_32"); // For Windows Sockets
+        exe.linkSystemLibrary("secur32"); // For Windows Security
+        exe.linkSystemLibrary("crypt32"); // For cryptography functions
+
+        // Add static winpthreads for POSIX time functions
+        exe.addObjectFile(.{ .cwd_relative = "/opt/homebrew/Cellar/mingw-w64/12.0.0_2/toolchain-x86_64/x86_64-w64-mingw32/lib/libwinpthread.a" });
+
+        // Define Windows threading model to match FFmpeg build
+        exe.defineCMacro("WIN32_LEAN_AND_MEAN", null);
+        exe.defineCMacro("HAVE_WIN32_THREADS", "1");
+        exe.defineCMacro("PTWS32_STATIC_LIB", "1");
+        exe.defineCMacro("_WIN32_WINNT", "0x0601"); // Windows 7 and above
+
+        // Third-party libraries (from MinGW)
+        exe.linkSystemLibrary("z"); // zlib for compression
+        exe.addObjectFile(.{ .cwd_relative = "/usr/local/x86_64-w64-mingw32/lib/libx264.a" }); // you'll likely need to build x264 yourself, see contributing/building_ffmpeg.md
+        exe.linkSystemLibrary("d3d11");
     }
+
+    // Link FFmpeg static libraries
+    exe.linkSystemLibrary("avcodec");
+    exe.linkSystemLibrary("avfilter");
+    exe.linkSystemLibrary("avdevice");
+    exe.linkSystemLibrary("avformat");
+    exe.linkSystemLibrary("avutil");
+    exe.linkSystemLibrary("swresample");
+    exe.linkSystemLibrary("swscale");
 
     b.installArtifact(exe);
 

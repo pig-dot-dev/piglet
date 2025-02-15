@@ -1,0 +1,14 @@
+prefix=./windows-build
+exec_prefix=${prefix}
+libdir=./windows-build/lib
+includedir=./windows-build/include
+
+Name: libswresample
+Description: FFmpeg audio resampling library
+Version: 5.4.100
+Requires: libavutil >= 59.56.100
+Requires.private: 
+Conflicts:
+Libs: -L${libdir}  -lswresample -lm -latomic
+Libs.private: 
+Cflags: -I${includedir}
