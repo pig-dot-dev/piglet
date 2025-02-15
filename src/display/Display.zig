@@ -1,3 +1,5 @@
+// Display is the high-level api for piglet into the display
+
 const std = @import("std");
 const Capture = @import("Capture.zig");
 const Encoder = @import("Encoder.zig");
@@ -23,8 +25,18 @@ pub fn deinit(self: *Display) void {
     self.capture.deinit();
 }
 
-pub fn screenshot(self: *Display, allocator: std.mem.Allocator) !Image {
+pub fn screenshot(self: *Display, allocator: std.mem.Allocator, scale_options: Encoder.ScaleOptions) !Image {
     var frame = try self.capture.getFrame();
     defer frame.deinit();
-    return try self.encoder.encode(frame, allocator);
+    return try self.encoder.encode(frame, allocator, scale_options);
+}
+
+pub fn width(self: Display) u32 {
+    // note: these are the dimensions of the capture, not the encoded image
+    return @intCast(self.capture.dimensions.width);
+}
+
+pub fn height(self: Display) u32 {
+    // note: these are the dimensions of the capture, not the encoded image
+    return @intCast(self.capture.dimensions.height);
 }

@@ -3,7 +3,7 @@ const std = @import("std");
 // Zig 0.13.0 required.
 
 pub fn build(b: *std.Build) void {
-    const version = "0.0.1";
+    const version = "0.0.2";
 
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -31,12 +31,6 @@ pub fn build(b: *std.Build) void {
     exe.root_module.addImport("websocket", websocket.module("websocket"));
 
     exe.root_module.addOptions("build_config", build_options);
-
-    const zigimg_dependency = b.dependency("zigimg", .{
-        .target = target,
-        .optimize = optimize,
-    });
-    exe.root_module.addImport("zigimg", zigimg_dependency.module("zigimg"));
 
     // Add FFmpeg include and lib paths
     exe.addSystemIncludePath(b.path("vendor/ffmpeg/include"));

@@ -1,3 +1,5 @@
+/// Capture represents the device display input stream
+/// It is used to capture raw images from the display
 const std = @import("std");
 const c = @import("c.zig").c;
 const Frame = @import("Frame.zig");
@@ -16,6 +18,9 @@ dimensions: struct {
 },
 
 pub fn init() !Capture {
+    // Set FFmpeg log level to only show errors
+    c.av_log_set_level(c.AV_LOG_ERROR);
+
     // Register all devices (including gdigrab)
     c.avdevice_register_all();
 
@@ -133,14 +138,7 @@ pub fn getFrame(self: Capture) !Frame {
             return error.ReceiveFrameFailed;
         }
 
-        // Successfully got a frame, convert it to RGB24
-        var raw_frame = Frame.init(frame, .BGR0);
-        const rgb_frame = try raw_frame.convertTo(.{
-            .format = .RGB24,
-            .max_width = null,
-            .max_height = null,
-        });
-
-        return rgb_frame;
+        // Successfully got a frame
+        return Frame.init(frame);
     }
 }

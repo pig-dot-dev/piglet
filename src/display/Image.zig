@@ -1,3 +1,6 @@
+// Image represents what users get from the API (IE: PNG)
+// They are produced by the Encoder
+
 const std = @import("std");
 
 const Image = @This();
@@ -9,8 +12,6 @@ allocator: std.mem.Allocator,
 pub const Encoding = enum {
     PNG,
     // Add more formats later:
-    // JPEG,
-    // WEBP,
 };
 
 pub fn deinit(self: *Image) void {

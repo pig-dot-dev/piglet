@@ -7,7 +7,7 @@ const Deps = struct {
     computer: *Computer,
 };
 
-pub fn Run(allocator: std.mem.Allocator, computer: *Computer, port: u16) !void {
+pub fn run(allocator: std.mem.Allocator, computer: *Computer, port: u16) !void {
     var app = Deps{ .computer = computer };
 
     // Pass Deps into ServerApp makes that pointer available in the handler
@@ -66,11 +66,15 @@ fn notImplemented(_: *httpz.Request, res: *httpz.Response) !void {
 }
 
 fn getScreenshot(deps: *Deps, _: *httpz.Request, res: *httpz.Response) !void {
-    const png_data = try deps.computer.display.getPNG(res.arena);
-    defer res.arena.free(png_data);
+    // todo: allow specifying size and format
+    const image = try deps.computer.display.screenshot(res.arena, .{
+        .width = 1024,
+        .height = 768,
+        .mode = .AspectFill, // means display will be correct scale, likely bigger than 1024x768
+    });
     res.status = 200;
     res.header("Content-Type", "image/png");
-    try res.writer().writeAll(png_data);
+    try res.writer().writeAll(image.bytes);
 }
 
 fn getDimensions(deps: *Deps, _: *httpz.Request, res: *httpz.Response) !void {

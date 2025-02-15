@@ -26,8 +26,6 @@ To produce these on my Mac, I followed the steps documented in `contributing/bui
 
 Hopefully you won't need to build ffmpeg from scratch, but if you run into likely issues with the zig.build script linking in my prebuilt static library, you may need to check out the `contributing/building_ffmpeg.md` doc to see if there are any system installs you need to do first, such as building ffmpeg dependencies zlib or x264.
 
-$2k bounty for anyone who can resolve [this ffmpeg zig build issue](https://github.com/allyourcodebase/ffmpeg/issues/6) for Zig version 0.13.0 compiling to x86_64-windows-gnu. But before you do, please open a discussion if you're interested, to confirm we still need it.
-
 ## Building
 ```bash
 # for debug. Note image operations may be slow.

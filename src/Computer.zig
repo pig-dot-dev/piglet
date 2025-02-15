@@ -6,18 +6,17 @@ const Mouse = @import("input/Mouse.zig");
 const Computer = @This();
 
 display: Display,
-// keyboard: Keyboard,
-// mouse: Mouse,
+keyboard: Keyboard,
+mouse: Mouse,
 
 pub fn init(allocator: std.mem.Allocator) !Computer {
-    _ = allocator;
     const display = try Display.init();
-    // const keyboard = Keyboard.new(allocator);
-    // const mouse = Mouse.new(display.width(), display.height());
+    const keyboard = Keyboard.new(allocator);
+    const mouse = Mouse.new(display.width(), display.height());
     return .{
         .display = display,
-        // .keyboard = keyboard,
-        // .mouse = mouse,
+        .keyboard = keyboard,
+        .mouse = mouse,
     };
 }
 
