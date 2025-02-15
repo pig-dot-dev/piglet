@@ -88,7 +88,7 @@ cd ffmpeg
 
 # Configure FFmpeg with x264 and PNG support
 PKG_CONFIG_PATH="/usr/local/x86_64-w64-mingw32/lib/pkgconfig" \
-CFLAGS="-I/usr/local/x86_64-w64-mingw32/include -include stdint.h -DWIN32_LEAN_AND_MEAN -DHAVE_WIN32_THREADS=1 -DPTW32_STATIC_LIB -D_WIN32_WINNT=0x0601" \
+CFLAGS="-I/usr/local/x86_64-w64-mingw32/include -DWIN32_LEAN_AND_MEAN -DHAVE_WIN32_THREADS=1 -DPTW32_STATIC_LIB -D_WIN32_WINNT=0x0601" \
 LDFLAGS="-L/usr/local/x86_64-w64-mingw32/lib" \
 ./configure \
   --prefix=./windows-build \
@@ -104,14 +104,28 @@ LDFLAGS="-L/usr/local/x86_64-w64-mingw32/lib" \
   --enable-version3 \
   --disable-programs \
   --disable-doc \
-  --disable-avdevice \
   --disable-postproc \
-  --disable-network \
   --enable-w32threads \
   --disable-pthreads \
   --enable-cross-compile \
   --enable-zlib \
   --enable-protocol=file \
+  --enable-protocol=http \
+  --enable-protocol=https \
+  --enable-protocol=tcp \
+  --enable-protocol=tls \
+  --enable-protocol=crypto \
+  --enable-protocol=rtmp \
+  --enable-protocol=rtmps \
+  --enable-demuxer=flv \
+  --enable-demuxer=live_flv \
+  --enable-demuxer=mov \
+  --enable-demuxer=mp3 \
+  --enable-demuxer=image2 \
+  --enable-muxer=flv \
+  --enable-muxer=mp4 \
+  --enable-muxer=mov \
+  --enable-muxer=image2 \
   --enable-decoder=h264 \
   --enable-decoder=aac \
   --enable-decoder=mp3 \
@@ -121,14 +135,9 @@ LDFLAGS="-L/usr/local/x86_64-w64-mingw32/lib" \
   --enable-encoder=aac \
   --enable-encoder=pcm_s16le \
   --enable-encoder=png \
-  --enable-demuxer=mov \
-  --enable-demuxer=mp3 \
-  --enable-demuxer=image2 \
-  --enable-muxer=mp4 \
-  --enable-muxer=mov \
-  --enable-muxer=image2 \
   --enable-parser=h264 \
   --enable-parser=aac \
+  --enable-parser=png \
   --enable-bsf=h264_mp4toannexb \
   --enable-filter=scale \
   --enable-filter=format
@@ -158,6 +167,7 @@ The configuration above includes:
 - AAC and MP3 audio support
 - MOV/MP4 container support
 - PNG image support with resizing capabilities
+- RTMP streaming support
 - Static libraries only (no DLLs)
 - Minimal build with only necessary components enabled
 

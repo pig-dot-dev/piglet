@@ -38,14 +38,15 @@ pub fn build(b: *std.Build) void {
     });
     exe.root_module.addImport("zigimg", zigimg_dependency.module("zigimg"));
 
-    // Add MinGW include paths - these will bring in all the Windows headers
-    // Really only helpful for the Zig language server on macOS
-    exe.addSystemIncludePath(std.Build.LazyPath{ .cwd_relative = "/opt/homebrew/Cellar/mingw-w64/12.0.0_1/toolchain-x86_64/x86_64-w64-mingw32/include" });
-    exe.linkLibC();
-
     // Add FFmpeg include and lib paths
     exe.addSystemIncludePath(b.path("vendor/ffmpeg/include"));
+    exe.addSystemIncludePath(b.path("vendor/ffmpeg/include/ffmpeg")); // Add FFmpeg include paths for FFMPEG.zig
     exe.addLibraryPath(b.path("vendor/ffmpeg/lib"));
+
+    // Add MinGW include paths - these will bring in all the Windows headers
+    // Really only helpful for the Zig language server on macOS
+    exe.addSystemIncludePath(std.Build.LazyPath{ .cwd_relative = "/opt/homebrew/Cellar/mingw-w64/12.0.0_2/toolchain-x86_64/x86_64-w64-mingw32/include" });
+    exe.linkLibC();
 
     const target_info = target.result;
     if (target_info.os.tag == .windows) {
@@ -56,9 +57,17 @@ pub fn build(b: *std.Build) void {
         // Windows system libraries - add these before FFmpeg
         exe.linkSystemLibrary("kernel32"); // For windows time functions
         exe.linkSystemLibrary("bcrypt"); // For crypto functions
+        exe.linkSystemLibrary("shell32"); // For shell functions
+        exe.linkSystemLibrary("shlwapi"); // For additional shell functions
         exe.linkSystemLibrary("ole32"); // For COM/Media Foundation
+        exe.linkSystemLibrary("oleaut32"); // For OLE Automation
         exe.linkSystemLibrary("winmm"); // For additional time functions
         exe.linkSystemLibrary("ntdll"); // For additional system functions
+        exe.linkSystemLibrary("gdi32"); // For screen capture
+        exe.linkSystemLibrary("vfw32"); // For Video for Windows
+        exe.linkSystemLibrary("ws2_32"); // For Windows Sockets
+        exe.linkSystemLibrary("secur32"); // For Windows Security
+        exe.linkSystemLibrary("crypt32"); // For cryptography functions
 
         // Add static winpthreads for POSIX time functions
         exe.addObjectFile(.{ .cwd_relative = "/opt/homebrew/Cellar/mingw-w64/12.0.0_2/toolchain-x86_64/x86_64-w64-mingw32/lib/libwinpthread.a" });
@@ -78,6 +87,7 @@ pub fn build(b: *std.Build) void {
     // Link FFmpeg static libraries
     exe.linkSystemLibrary("avcodec");
     exe.linkSystemLibrary("avfilter");
+    exe.linkSystemLibrary("avdevice");
     exe.linkSystemLibrary("avformat");
     exe.linkSystemLibrary("avutil");
     exe.linkSystemLibrary("swresample");
