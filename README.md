@@ -83,6 +83,40 @@ computer/
   - Requires json body: `{ x: number, y: number }`
 - POST `/computer/input/mouse/click`
   - Requires json body: `{ x: number, y: number, button: "left"|"right", down: boolean }`
+ 
+You can call the API directly at localhost, or use the [Pig Python SDK](https://github.com/pig-dot-dev/pig-python):
+```bash
+pip install pig-python
+```
+
+In local mode:
+```python
+from pig import Client
+client = Client()
+
+# Select your local machine
+machine = client.machines.local()
+
+# Start a connection and send a workflow
+with machine.connect() as conn:
+    conn.key("super")                     # Press Windows key
+    conn.type("hello world!")             # Type text
+```
+
+Or across the internet (requires [Pig](https://pig.dev) account)
+```python
+from pig import Client
+client = Client()
+
+# Select your local machine
+machine = client.machines.remote(id="YOUR_MACHINE_ID")
+
+# Start a connection and send a workflow
+with machine.connect() as conn:
+    conn.key("super")                     # Press Windows key
+    conn.type("hello world!")             # Type text
+```
+
 
 ### Roadmap
 ```
