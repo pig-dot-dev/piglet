@@ -11,6 +11,8 @@ format_ctx: [*c]c.AVFormatContext,
 codec_ctx: [*c]c.AVCodecContext,
 stream_index: c_int,
 
+mutex: std.Thread.Mutex = .{},
+
 // Dimensions of the capture
 dimensions: struct {
     width: c_int,
@@ -108,11 +110,14 @@ pub fn deinit(self: *Capture) void {
 
 /// Get a single frame from the capture device
 /// Caller owns the returned frame and must call frame.deinit()
-pub fn getFrame(self: Capture) !Frame {
+pub fn getFrame(self: *Capture) !Frame {
     // Allocate packet for reading
     var packet = c.av_packet_alloc();
     if (packet == null) return error.PacketAllocFailed;
     defer c.av_packet_free(&packet);
+
+    self.mutex.lock();
+    defer self.mutex.unlock();
 
     // Read frames until we get a video frame
     while (true) {

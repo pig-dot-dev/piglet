@@ -20,11 +20,9 @@ Make sure you brew install the same version found in the `build.zig` file.
 This pulls in the Windows headers for ZLS and provides necessary libraries for cross-compilation.
 
 ## Building FFmpeg
-The piglet repo currently has prebuilt FFmpeg static libraries for Windows in `/vendor/ffmpeg`.
+The piglet build script expects prebuilt FFmpeg static libraries for Windows in `/vendor/ffmpeg`.
 
 To produce these on my Mac, I followed the steps documented in `contributing/building_ffmpeg.md`.
-
-Hopefully you won't need to build ffmpeg from scratch, but if you run into likely issues with the zig.build script linking in my prebuilt static library, you may need to check out the `contributing/building_ffmpeg.md` doc to see if there are any system installs you need to do first, such as building ffmpeg dependencies zlib or x264.
 
 ## Building
 ```bash

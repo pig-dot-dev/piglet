@@ -23,3 +23,19 @@ pub fn init(raw_frame: [*c]c.AVFrame) Frame {
 pub fn deinit(self: *Frame) void {
     c.av_frame_free(&self.raw_frame);
 }
+
+pub fn create(width: c_int, height: c_int, format: c_int) !Frame {
+    var frame = c.av_frame_alloc();
+    if (frame == null) return error.FrameAllocFailed;
+    errdefer c.av_frame_free(&frame);
+
+    frame.*.format = format;
+    frame.*.width = width;
+    frame.*.height = height;
+
+    // Allocate actual frame buffers
+    const ret = c.av_frame_get_buffer(frame, 0);
+    if (ret < 0) return error.FrameBufferAllocFailed;
+
+    return init(frame);
+}
