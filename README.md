@@ -108,7 +108,7 @@ Or across the internet (requires [Pig](https://pig.dev) account)
 from pig import Client
 client = Client()
 
-# Select your local machine
+# Select your remote machine by ID
 machine = client.machines.remote(id="YOUR_MACHINE_ID")
 
 # Start a connection and send a workflow
