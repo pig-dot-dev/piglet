@@ -50,9 +50,9 @@ pub fn move(mouse: *Mouse, target: Coordinates) !void {
         return error.SetCursorPosFailed;
     }
 
-    // Ensure it arrived (in physical coordinates)
+    // Ensure it arrived (in physical coordinates) with +-2px tolerance (due to floating point errors)
     const arrived = try mouse.coordinates();
-    if (arrived.x != target.x or arrived.y != target.y) {
+    if ((arrived.x >= target.x + 2 or arrived.x <= target.x - 2) or (arrived.y >= target.y + 2 or arrived.y <= target.y - 2)) {
         return error.MouseMoveFailed;
     }
 }

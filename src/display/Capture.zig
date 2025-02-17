@@ -31,12 +31,16 @@ pub fn init() !Capture {
     const input_format = c.av_find_input_format("gdigrab");
     if (input_format == null) return error.NoGdigrab;
 
+    // Set options to draw mouse cursor
+    var options: ?*c.AVDictionary = null;
+    _ = c.av_dict_set(&options, "draw_mouse", "1", 0);
+
     // Open the input device (screen capture)
     const ret = c.avformat_open_input(
         &format_ctx,
         "desktop",
         input_format,
-        null,
+        &options,
     );
     if (ret < 0) return error.OpenInputFailed;
     if (format_ctx == null) return error.OpenInputFailed;

@@ -1,6 +1,7 @@
 const std = @import("std");
 const Computer = @import("Computer.zig");
 const MouseButton = @import("input/Mouse.zig").Button;
+const Coordinates = @import("input/Mouse.zig").Coordinates;
 const httpz = @import("httpz"); // Note we use the version pinned to zig 0.13
 
 const Deps = struct {
@@ -120,7 +121,7 @@ const ButtonEnum = enum {
     left,
     right,
 };
-const MouseClickPayload = struct { x: i32, y: i32, button: ButtonEnum, down: bool };
+const MouseClickPayload = struct { x: ?i32 = null, y: ?i32 = null, button: ButtonEnum, down: bool };
 
 fn postMouseMove(deps: *Deps, req: *httpz.Request, res: *httpz.Response) !void {
     const body = try req.json(MouseMovePayload) orelse {
@@ -137,12 +138,19 @@ fn postMouseClick(deps: *Deps, req: *httpz.Request, res: *httpz.Response) !void 
         try res.json(.{}, .{});
         return;
     };
+
+    // If x,y not provided, use current position
+    const target: Coordinates = if (body.x != null and body.y != null)
+        .{ .x = body.x.?, .y = body.y.? }
+    else
+        try deps.computer.mouse.coordinates();
+
     // map public mouse enum API to our internal one
     const button: MouseButton = switch (body.button) {
         .left => MouseButton.left,
         .right => MouseButton.right,
     };
-    try deps.computer.mouse.click(button, body.down, .{ .x = body.x, .y = body.y });
+    try deps.computer.mouse.click(button, body.down, target);
 }
 
 fn getFsList(_: *Deps, req: *httpz.Request, res: *httpz.Response) !void {
