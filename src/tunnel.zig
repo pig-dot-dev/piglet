@@ -1,6 +1,6 @@
 const std = @import("std");
 const websocket = @import("websocket");
-const getConfig = @import("config.zig").getConfig;
+const Config = @import("config.zig").Config;
 const httpz = @import("httpz");
 const json = std.json;
 const http = std.http;
@@ -240,11 +240,8 @@ pub const TunnelOptions = struct {
 
 /// Start a websocket client and subscribe to a control server
 /// Forwarding requests to the local server
-pub fn startControlTunnel(allocator: std.mem.Allocator, options: TunnelOptions) !void {
+pub fn startControlTunnel(allocator: std.mem.Allocator, config: Config, options: TunnelOptions) !void {
     const control_path = "/tunnel/ws";
-
-    var config = try getConfig(allocator);
-    defer config.deinit(allocator);
 
     // Create a certificate bundle for TLS
     var bundle = std.crypto.Certificate.Bundle{};

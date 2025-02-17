@@ -3,7 +3,7 @@ const std = @import("std");
 // Zig 0.13.0 required.
 
 pub fn build(b: *std.Build) void {
-    const version = "0.0.2";
+    const version = "0.0.3";
 
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -46,6 +46,7 @@ pub fn build(b: *std.Build) void {
     if (target_info.os.tag == .windows) {
         // Add MinGW library paths
         exe.addLibraryPath(.{ .cwd_relative = "/usr/local/x86_64-w64-mingw32/lib" });
+        exe.addLibraryPath(.{ .cwd_relative = "/usr/local/x86_64-w64-mingw32/lib64" });
         exe.addLibraryPath(.{ .cwd_relative = "/opt/homebrew/Cellar/mingw-w64/12.0.0_2/toolchain-x86_64/x86_64-w64-mingw32/lib" });
 
         // Windows system libraries - add these before FFmpeg
@@ -62,6 +63,8 @@ pub fn build(b: *std.Build) void {
         exe.linkSystemLibrary("ws2_32"); // For Windows Sockets
         exe.linkSystemLibrary("secur32"); // For Windows Security
         exe.linkSystemLibrary("crypt32"); // For cryptography functions
+        exe.linkSystemLibrary("ssl");
+        exe.linkSystemLibrary("crypto");
 
         // Add static winpthreads for POSIX time functions
         exe.addObjectFile(.{ .cwd_relative = "/opt/homebrew/Cellar/mingw-w64/12.0.0_2/toolchain-x86_64/x86_64-w64-mingw32/lib/libwinpthread.a" });

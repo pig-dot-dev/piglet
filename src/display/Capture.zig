@@ -11,6 +11,8 @@ format_ctx: [*c]c.AVFormatContext,
 codec_ctx: [*c]c.AVCodecContext,
 stream_index: c_int,
 
+mutex: std.Thread.Mutex = .{},
+
 // Dimensions of the capture
 dimensions: struct {
     width: c_int,
@@ -29,12 +31,16 @@ pub fn init() !Capture {
     const input_format = c.av_find_input_format("gdigrab");
     if (input_format == null) return error.NoGdigrab;
 
+    // Set options to draw mouse cursor
+    var options: ?*c.AVDictionary = null;
+    _ = c.av_dict_set(&options, "draw_mouse", "1", 0);
+
     // Open the input device (screen capture)
     const ret = c.avformat_open_input(
         &format_ctx,
         "desktop",
         input_format,
-        null,
+        &options,
     );
     if (ret < 0) return error.OpenInputFailed;
     if (format_ctx == null) return error.OpenInputFailed;
@@ -108,11 +114,14 @@ pub fn deinit(self: *Capture) void {
 
 /// Get a single frame from the capture device
 /// Caller owns the returned frame and must call frame.deinit()
-pub fn getFrame(self: Capture) !Frame {
+pub fn getFrame(self: *Capture) !Frame {
     // Allocate packet for reading
     var packet = c.av_packet_alloc();
     if (packet == null) return error.PacketAllocFailed;
     defer c.av_packet_free(&packet);
+
+    self.mutex.lock();
+    defer self.mutex.unlock();
 
     // Read frames until we get a video frame
     while (true) {

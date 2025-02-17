@@ -4,8 +4,10 @@ const Display = @import("display/Display.zig");
 const Frame = @import("display/Frame.zig");
 const Mouse = @import("input/mouse.zig").Mouse;
 const Keyboard = @import("input/Keyboard.zig").Keyboard;
+const getConfig = @import("config.zig").getConfig;
 const server = @import("server.zig");
 const tunnel = @import("tunnel.zig");
+const stream = @import("stream.zig");
 
 const Computer = @import("Computer.zig");
 
@@ -41,17 +43,21 @@ pub fn main() !void {
         }
     }
 
+    var config = try getConfig(allocator);
+    defer config.deinit(allocator);
+
     var computer = try Computer.init(allocator);
     defer computer.deinit();
 
     // Subscribe upstream if host specified
     var tunnel_thread: std.Thread = undefined;
+    var stream_thread: std.Thread = undefined;
     if (control_host) |ch| {
         tunnel_thread = try std.Thread.spawn(
             .{},
             tunnel.startControlTunnel,
             .{
-                allocator, .{
+                allocator, config, .{
                     .control_host = ch,
                     .control_port = control_port,
                     .bearer_token = pig_secret,
@@ -59,8 +65,18 @@ pub fn main() !void {
                 },
             },
         );
+
+        stream_thread = try std.Thread.spawn(
+            .{},
+            stream.startStream,
+            .{ allocator, config, .{
+                .control_host = ch,
+                .display = &computer.display,
+            } },
+        );
     }
     defer tunnel_thread.join();
+    defer stream_thread.join();
 
     try server.run(allocator, &computer, target_port);
 }

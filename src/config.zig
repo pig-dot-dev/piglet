@@ -7,7 +7,7 @@ const win = std.os.windows;
 const CONFIG_DIR = ".piglet";
 const CONFIG_FILE = "config.json";
 
-const Config = struct {
+pub const Config = struct {
     version: []const u8,
     fingerprint: []const u8,
 
