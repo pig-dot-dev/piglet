@@ -52,11 +52,11 @@ cd zlib-1.3.1
 # Configure and build zlib for MinGW
 CROSS_PREFIX=x86_64-w64-mingw32- ./configure --prefix=/usr/local/x86_64-w64-mingw32 --static
 
-# Build
-make -j$(sysctl -n hw.ncpu)
-
 # Create the static library using MinGW ar instead of libtool
 x86_64-w64-mingw32-ar rcs libz.a adler32.o crc32.o deflate.o infback.o inffast.o inflate.o inftrees.o trees.o zutil.o compress.o uncompr.o gzclose.o gzlib.o gzread.o gzwrite.o
+
+# Build
+make -j$(sysctl -n hw.ncpu)
 
 # Install
 sudo make install

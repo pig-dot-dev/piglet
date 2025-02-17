@@ -108,10 +108,6 @@ fn postKeyboardKey(deps: *Deps, req: *httpz.Request, res: *httpz.Response) !void
 
 fn getMousePosition(deps: *Deps, _: *httpz.Request, res: *httpz.Response) !void {
     const coordinates = try deps.computer.mouse.coordinates();
-    if (coordinates.space == .Virtual) {
-        // mouse public API should always be physical coordinates but we'll check just in case
-        return error.MouseNotInPhysicalSpace;
-    }
     res.status = 200;
     try res.json(.{
         .x = coordinates.x,

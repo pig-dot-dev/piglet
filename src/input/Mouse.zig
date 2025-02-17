@@ -4,49 +4,23 @@ const c = @import("c.zig").c;
 
 const Mouse = @This();
 
-scale_x: f32,
-scale_y: f32,
-
 pub const Coordinates = struct {
     x: i32,
     y: i32,
-    space: Space = Space.Physical, // Users interract using physical coordinates
-
-    pub const Space = enum {
-        Virtual,
-        Physical,
-    };
-
-    pub fn toVirtual(self: Coordinates, scale_x: f32, scale_y: f32) Coordinates {
-        if (self.space == .Virtual) {
-            return self;
-        }
-        return .{
-            .x = @intFromFloat(@as(f32, @floatFromInt(self.x)) / scale_x),
-            .y = @intFromFloat(@as(f32, @floatFromInt(self.y)) / scale_y),
-            .space = .Virtual,
-        };
-    }
-
-    pub fn toPhysical(self: Coordinates, scale_x: f32, scale_y: f32) Coordinates {
-        if (self.space == .Physical) {
-            return self;
-        }
-        return .{
-            .x = @intFromFloat(@as(f32, @floatFromInt(self.x)) * scale_x),
-            .y = @intFromFloat(@as(f32, @floatFromInt(self.y)) * scale_y),
-            .space = .Physical,
-        };
-    }
 };
+
+scale_x: f32,
+scale_y: f32,
 
 pub fn new(display_width: u32, display_height: u32) Mouse {
     // Windows Mouse APIs use a virtual screen coordinate system, which may be different from the physical screen.
     // We need to scale the user provided mouse coordinates (physical screen) to virtual screen coordinates.
     const virtual_width = @as(f32, @floatFromInt(c.GetSystemMetrics(c.SM_CXVIRTUALSCREEN)));
     const virtual_height = @as(f32, @floatFromInt(c.GetSystemMetrics(c.SM_CYVIRTUALSCREEN)));
-    const scale_x = @as(f32, @floatFromInt(display_width)) / virtual_width;
-    const scale_y = @as(f32, @floatFromInt(display_height)) / virtual_height;
+
+    // Now we scale FROM physical TO virtual
+    const scale_x = virtual_width / @as(f32, @floatFromInt(display_width));
+    const scale_y = virtual_height / @as(f32, @floatFromInt(display_height));
 
     return .{
         .scale_x = scale_x,
@@ -60,22 +34,23 @@ pub fn coordinates(mouse: *Mouse) !Coordinates {
         return error.GetCursorPosFailed;
     }
 
-    var coord = Coordinates{
-        .x = @intCast(point.x),
-        .y = @intCast(point.y),
-        .space = .Virtual,
+    // Convert virtual coordinates back to physical
+    return Coordinates{
+        .x = @intFromFloat(@as(f32, @floatFromInt(point.x)) / mouse.scale_x),
+        .y = @intFromFloat(@as(f32, @floatFromInt(point.y)) / mouse.scale_y),
     };
-    coord = coord.toPhysical(mouse.scale_x, mouse.scale_y);
-    return coord;
 }
 
 pub fn move(mouse: *Mouse, target: Coordinates) !void {
-    const target_scaled = target.toVirtual(mouse.scale_x, mouse.scale_y);
-    if (c.SetCursorPos(target_scaled.x, target_scaled.y) == 0) {
+    // Convert physical coordinates to virtual
+    const virtual_x: c_int = @intFromFloat(@as(f32, @floatFromInt(target.x)) * mouse.scale_x);
+    const virtual_y: c_int = @intFromFloat(@as(f32, @floatFromInt(target.y)) * mouse.scale_y);
+
+    if (c.SetCursorPos(virtual_x, virtual_y) == 0) {
         return error.SetCursorPosFailed;
     }
 
-    // Ensure it arrived
+    // Ensure it arrived (in physical coordinates)
     const arrived = try mouse.coordinates();
     if (arrived.x != target.x or arrived.y != target.y) {
         return error.MouseMoveFailed;
