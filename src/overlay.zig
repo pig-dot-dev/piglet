@@ -10,9 +10,9 @@ const c = @cImport({
     @cInclude("windows.h");
 });
 
-pub fn startOverlay() !void {
+pub fn startOverlay(allocator: std.mem.Allocator) !void {
     // start cursor overlay
-    var window = try CursorOverlay.init();
+    var window = try CursorOverlay.init(allocator);
     window.show();
     window.run();
 }
@@ -20,6 +20,7 @@ pub fn startOverlay() !void {
 pub const CursorOverlay = struct {
     hwnd: c.HWND,
     instance: c.HINSTANCE,
+    allocator: std.mem.Allocator,
 
     const Self = @This();
 
@@ -30,18 +31,19 @@ pub const CursorOverlay = struct {
         pub const color_b: u8 = 0xE5;
     };
 
-    pub fn init() !Self {
+    pub fn init(allocator: std.mem.Allocator) !Self {
         // Get current app instance
         const instance: c.HINSTANCE = @ptrCast(c.GetModuleHandleW(null));
         if (instance == null) return error.ModuleHandleFailed;
 
         // Tell windows we're creating a window
-        try registerWindowClass(instance);
-        const hwnd = try createWindow(instance);
+        try registerWindowClass(allocator, instance);
+        const hwnd = try createWindow(allocator, instance);
 
         return Self{
             .hwnd = hwnd,
             .instance = instance,
+            .allocator = allocator,
         };
     }
 
@@ -184,8 +186,8 @@ pub const CursorOverlay = struct {
     }
 
     /// Tells the Windows OS we're creating a window
-    fn registerWindowClass(instance: c.HINSTANCE) !void {
-        const class_name = L("Transparent Window Class");
+    fn registerWindowClass(allocator: std.mem.Allocator, instance: c.HINSTANCE) !void {
+        const class_name = try std.unicode.utf8ToUtf16LeAllocZ(allocator, "Transparent Window Class");
         var wc = c.WNDCLASSEXW{
             .cbSize = @sizeOf(c.WNDCLASSEXW),
             .style = 0,
@@ -197,7 +199,7 @@ pub const CursorOverlay = struct {
             .hCursor = c.LoadCursorW(null, @ptrFromInt(32512)), // 32512 is IDC_ARROW
             .hbrBackground = null,
             .lpszMenuName = null,
-            .lpszClassName = class_name,
+            .lpszClassName = class_name.ptr,
             .hIconSm = null,
         };
 
@@ -207,13 +209,16 @@ pub const CursorOverlay = struct {
     }
 
     /// Actually creates the window, styles it, etc
-    fn createWindow(instance: c.HINSTANCE) !c.HWND {
+    fn createWindow(allocator: std.mem.Allocator, instance: c.HINSTANCE) !c.HWND {
+        const class_name = try std.unicode.utf8ToUtf16LeAllocZ(allocator, "Transparent Window Class");
+        const window_name = try std.unicode.utf8ToUtf16LeAllocZ(allocator, "Piglet Cursor Overlay");
+
         const hwnd = c.CreateWindowExW(
             c.WS_EX_LAYERED | c.WS_EX_TOPMOST | c.WS_EX_TRANSPARENT |
                 c.WS_EX_NOACTIVATE |
                 c.WS_EX_TOOLWINDOW,
-            L("Transparent Window Class"),
-            L("Piglet Cursor Overlay"),
+            class_name.ptr,
+            window_name.ptr,
             c.WS_POPUP,
             0,
             0,
@@ -241,19 +246,4 @@ export fn WindowProc(hwnd: c.HWND, uMsg: c.UINT, wParam: c.WPARAM, lParam: c.LPA
         c.WM_TIMER => return 0, // Handle timer messages
         else => return c.DefWindowProcW(hwnd, uMsg, wParam, lParam),
     }
-}
-
-// Helper for wide strings - fixed alignment issue
-fn L(str: []const u8) [*:0]const u16 {
-    const len = str.len;
-    // Add 1 for null terminator
-    const buffer: [*]u16 = @ptrCast(@alignCast(std.heap.page_allocator.alloc(u8, (len + 1) * 2) catch unreachable));
-
-    var i: usize = 0;
-    while (i < len) : (i += 1) {
-        buffer[i] = @intCast(str[i]);
-    }
-    buffer[len] = 0;
-
-    return buffer[0..len :0];
 }
