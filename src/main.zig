@@ -82,7 +82,7 @@ pub fn main() !void {
     var overlay_thread = try std.Thread.spawn(
         .{},
         overlay.startOverlay,
-        .{},
+        .{allocator},
     );
     defer overlay_thread.join();
 
