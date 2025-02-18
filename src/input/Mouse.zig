@@ -44,17 +44,51 @@ pub fn move(mouse: *Mouse, target: Coordinates) !void {
         return error.OutOfBounds;
     }
 
-    // The SendInput function in Absolute mode
-    // requires the screen to be scaled by a factor of 65535.0
-    const normalized_x = @as(i32, @intFromFloat(@as(f64, @floatFromInt(target.x)) * mouse.scale_x));
-    const normalized_y = @as(i32, @intFromFloat(@as(f64, @floatFromInt(target.y)) * mouse.scale_y));
+    // We use SendInput function in Absolute mode
+    // which requires the screen to be scaled by a factor of 65535.0
 
+    // Linear interpolate to target for smooth movement
+    const current = try mouse.coordinates();
+    var current_x = @as(i32, @intFromFloat(@as(f64, @floatFromInt(current.x)) * mouse.scale_x));
+    var current_y = @as(i32, @intFromFloat(@as(f64, @floatFromInt(current.y)) * mouse.scale_y));
+    const target_x = @as(i32, @intFromFloat(@as(f64, @floatFromInt(target.x)) * mouse.scale_x));
+    const target_y = @as(i32, @intFromFloat(@as(f64, @floatFromInt(target.y)) * mouse.scale_y));
+
+    const steps = 20;
+    const step_time = 5 * std.time.ns_per_ms; // milliseconds
+    const step_x = @divFloor(target_x - current_x, steps);
+    const step_y = @divFloor(target_y - current_y, steps);
+
+    for (0..steps) |_| {
+        current_x += step_x;
+        current_y += step_y;
+        var input = c.INPUT{
+            .type = c.INPUT_MOUSE,
+            .unnamed_0 = .{
+                .mi = .{
+                    .dx = current_x, // note: dx and dy in absolute mode are just absolute coordinates
+                    .dy = current_y,
+                    .mouseData = 0,
+                    .dwFlags = c.MOUSEEVENTF_MOVE | c.MOUSEEVENTF_ABSOLUTE,
+                    .time = 0,
+                    .dwExtraInfo = 0,
+                },
+            },
+        };
+
+        if (c.SendInput(1, &input, @sizeOf(c.INPUT)) != 1) {
+            return error.SendInputFailed;
+        }
+        std.time.sleep(step_time);
+    }
+
+    // One final move to ensure the mouse is actually there
     var input = c.INPUT{
         .type = c.INPUT_MOUSE,
         .unnamed_0 = .{
             .mi = .{
-                .dx = normalized_x,
-                .dy = normalized_y,
+                .dx = target_x,
+                .dy = target_y,
                 .mouseData = 0,
                 .dwFlags = c.MOUSEEVENTF_MOVE | c.MOUSEEVENTF_ABSOLUTE,
                 .time = 0,

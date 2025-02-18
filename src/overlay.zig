@@ -10,6 +10,9 @@ const c = @cImport({
     @cInclude("windows.h");
 });
 
+// Embed the cursor bitmap
+const CURSOR_BITMAP_DATA = @embedFile("assets/cursor.bmp");
+
 pub fn startOverlay(allocator: std.mem.Allocator) !void {
     // start cursor overlay
     var window = try CursorOverlay.init(allocator);
@@ -85,8 +88,8 @@ pub const CursorOverlay = struct {
         const hbmp = c.CreateDIBSection(hdcMem, &bi, c.DIB_RGB_COLORS, &bits, null, 0);
         defer _ = c.DeleteObject(hbmp);
 
-        // Initialize bitmap to transparent
         if (bits) |ptr| {
+            // Initialize bitmap to transparent
             const pixels = @as([*]u32, @ptrCast(@alignCast(ptr)));
             const total_pixels = @as(usize, @intCast(screen_width * screen_height));
             for (0..total_pixels) |i| {
@@ -99,30 +102,40 @@ pub const CursorOverlay = struct {
                 return;
             }
 
-            // Draw filled circle with alpha
-            const radius: i32 = 10;
-            const alpha: u32 = 180; // Opacity (0-255)
-            // Pre-multiply RGB values with alpha
-            const color = (alpha << 24) | // Alpha in most significant byte
-                ((Config.color_b * alpha / 255) << 16) | // Pre-multiplied Blue
-                ((Config.color_g * alpha / 255) << 8) | // Pre-multiplied Green
-                (Config.color_r * alpha / 255); // Pre-multiplied Red
+            // Skip past BMP headers (54 bytes) to get to pixel data
+            const pixel_data = CURSOR_BITMAP_DATA[54..];
 
-            // Calculate bounding box for the circle
-            const min_x = @max(0, cursor.x - radius);
-            const max_x = @min(cursor.x + radius, screen_width - 1);
-            const min_y = @max(0, cursor.y - radius);
-            const max_y = @min(cursor.y + radius, screen_height - 1);
+            // Calculate cursor position (anchor top left)
+            const cursor_x = cursor.x - 2; // just for a little overlap
+            const cursor_y = cursor.y - 2;
 
-            // Fill circle pixels (only within bounding box)
-            var y: i32 = min_y;
-            while (y <= max_y) : (y += 1) {
-                var x: i32 = min_x;
-                while (x <= max_x) : (x += 1) {
-                    const dx = x - cursor.x;
-                    const dy = y - cursor.y;
-                    if (dx * dx + dy * dy <= radius * radius) {
-                        pixels[@intCast(y * screen_width + x)] = color;
+            // Copy pixel data directly
+            var y: c_int = 0;
+            while (y < 20) : (y += 1) {
+                var x: c_int = 0;
+                while (x < 20) : (x += 1) {
+                    const src_idx: usize = @intCast(((19 - y) * 20 + x) * 4); // 4 bytes per pixel, reading bottom-up
+                    if (src_idx + 3 < pixel_data.len) {
+                        const screen_x = x + cursor_x;
+                        const screen_y = y + cursor_y;
+
+                        if (screen_x >= 0 and screen_x < screen_width and
+                            screen_y >= 0 and screen_y < screen_height)
+                        {
+                            const b = pixel_data[src_idx];
+                            const g = pixel_data[src_idx + 1];
+                            const r = pixel_data[src_idx + 2];
+                            const a = pixel_data[src_idx + 3];
+
+                            // Pre-multiply RGB values with alpha
+                            const color = (@as(u32, a) << 24) | // Alpha in most significant byte
+                                (@as(u32, @divFloor(@as(u16, r) * @as(u16, a), 255)) << 16) | // Pre-multiplied Red
+                                (@as(u32, @divFloor(@as(u16, g) * @as(u16, a), 255)) << 8) | // Pre-multiplied Green
+                                @as(u32, @divFloor(@as(u16, b) * @as(u16, a), 255)); // Pre-multiplied Blue
+
+                            const dest_idx = @as(usize, @intCast(screen_y * screen_width + screen_x));
+                            pixels[dest_idx] = color;
+                        }
                     }
                 }
             }
