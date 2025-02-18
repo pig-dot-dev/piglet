@@ -3,7 +3,7 @@ const std = @import("std");
 // Zig 0.13.0 required.
 
 pub fn build(b: *std.Build) void {
-    const version = "0.0.3";
+    const version = "0.0.4";
 
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});

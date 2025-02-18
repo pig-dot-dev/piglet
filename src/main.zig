@@ -8,6 +8,7 @@ const getConfig = @import("config.zig").getConfig;
 const server = @import("server.zig");
 const tunnel = @import("tunnel.zig");
 const stream = @import("stream.zig");
+const overlay = @import("overlay.zig");
 
 const Computer = @import("Computer.zig");
 
@@ -77,6 +78,13 @@ pub fn main() !void {
     }
     defer tunnel_thread.join();
     defer stream_thread.join();
+
+    var overlay_thread = try std.Thread.spawn(
+        .{},
+        overlay.startOverlay,
+        .{},
+    );
+    defer overlay_thread.join();
 
     try server.run(allocator, &computer, target_port);
 }
