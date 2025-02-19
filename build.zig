@@ -3,7 +3,7 @@ const std = @import("std");
 // Zig 0.13.0 required.
 
 pub fn build(b: *std.Build) void {
-    const version = "0.0.4";
+    const version = "0.0.5";
 
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
@@ -17,6 +17,9 @@ pub fn build(b: *std.Build) void {
         .target = target,
         .optimize = optimize,
     });
+
+    const zigcli_dep = b.dependency("zig-cli", .{ .target = target });
+    exe.root_module.addImport("zig-cli", zigcli_dep.module("zig-cli"));
 
     const httpz = b.dependency("httpz", .{
         .target = target,

@@ -9,8 +9,8 @@ const RTMPOutput = @import("stream/RTMPOutput.zig");
 pub const StreamOptions = struct {
     control_host: []const u8,
     display: *Display,
-    fps: f64 = 30.0,
-    bitrate: u32 = 2_500_000,
+    fps: f64,
+    bitrate: u32,
 };
 
 pub fn startStream(allocator: std.mem.Allocator, config: Config, options: StreamOptions) !void {

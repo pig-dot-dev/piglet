@@ -233,7 +233,7 @@ const Handler = struct {
 
 pub const TunnelOptions = struct {
     control_host: []const u8,
-    bearer_token: ?[]const u8 = null,
+    bearer_token: []const u8,
     control_port: u16 = 443,
     target_port: u16 = 3000,
 };
@@ -289,10 +289,7 @@ pub fn startControlTunnel(allocator: std.mem.Allocator, config: Config, options:
 
         const headers_str = try std.fmt.allocPrint(allocator, "Host: {s}\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Version: 13{s}\r\nX-PIGLET-FINGERPRINT: {s}\r\nX-PIGLET-VERSION: {s}\r\n", .{
             host,
-            if (options.bearer_token) |token|
-                try std.fmt.allocPrint(allocator, "\r\nAuthorization: Bearer {s}", .{token})
-            else
-                "",
+            try std.fmt.allocPrint(allocator, "\r\nAuthorization: Bearer {s}", .{options.bearer_token}),
             config.fingerprint,
             config.version,
         });
