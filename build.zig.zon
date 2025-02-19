@@ -1,6 +1,6 @@
 .{
     .name = "piglet",
-    .version = "0.0.4",
+    .version = "0.0.5",
     .dependencies = .{
         .httpz = .{
             .url = "git+https://github.com/karlseguin/http.zig?ref=zig-0.13#2a910af45a6a733adbcf9e5e56642c05f4f5c769",
@@ -9,6 +9,10 @@
         .websocket = .{
             .url = "git+https://github.com/karlseguin/websocket.zig?=ref=zig-0.13#cf89cb8b9c61c99982ced19da54890983e226245",
             .hash = "12204ee130dbefc6f0de0c2b9e48f946ae8114f5f111256724122e17575a1ee7e2fb",
+        },
+        .@"zig-cli" = .{
+            .url = "git+https://github.com/pig-dot-dev/zig-cli#ec79a047bbd0b1cc317ddb377c83b870a3d0859e",
+            .hash = "1220249280aad0bc6d20a0f61a2e7297f79eebbbc78c25b5fb59a807fc3242758273",
         },
     },
     .paths = .{
