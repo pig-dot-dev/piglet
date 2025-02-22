@@ -49,7 +49,7 @@ Or subscribed for remote use via Pig cloud:
 ```powershell
 piglet join --secret SK-YOUR-SECRET-KEY
 ```
-> [Get your API key here](https://pig.dev/alpha)
+> [Get your API key here](https://pig.dev/login)
 
 ### API
 
