@@ -113,7 +113,7 @@ pub fn main() !void {
                 },
             },
         },
-        .version = "0.0.5",
+        .version = "0.0.6",
         .help_config = .{ .color_usage = .always },
     };
     return r.run(&app);
