@@ -11,7 +11,7 @@ const c = @cImport({
 });
 
 // Embed the cursor bitmap
-const CURSOR_BITMAP_DATA = @embedFile("assets/pink_cursor.bmp");
+const CURSOR_BITMAP_DATA = @embedFile("assets/cursor_30x30.bmp");
 
 pub fn startOverlay(allocator: std.mem.Allocator) !void {
     // start cursor overlay
@@ -103,66 +103,35 @@ pub const CursorOverlay = struct {
             }
 
             // Skip past BMP headers (54 bytes) to get to pixel data
-            const pixel_data = CURSOR_BITMAP_DATA[54..];
+            const pixel_data = CURSOR_BITMAP_DATA[138..];
 
-            // Debug print BMP header info
-            const bmp_header = CURSOR_BITMAP_DATA[0..54];
-            const width = @as(i32, @bitCast(std.mem.readInt(u32, bmp_header[18..22], .little)));
-            const height = @as(i32, @bitCast(std.mem.readInt(u32, bmp_header[22..26], .little)));
-            const bits_per_pixel = std.mem.readInt(u16, bmp_header[28..30], .little);
-            const compression = std.mem.readInt(u32, bmp_header[30..34], .little);
-            
-            // Print header info
-            std.debug.print("BMP Header: width={}, height={}, bpp={}, compression={}\n", .{
-                width, height, bits_per_pixel, compression
-            });
-            
-            // Print first 8 pixels to see the pattern
-            std.debug.print("First 8 pixels:\n", .{});
-            var i: usize = 0;
-            while (i < 32) : (i += 4) {
-                std.debug.print("Pixel {}: [{x:0>2}, {x:0>2}, {x:0>2}, {x:0>2}]\n", .{
-                    i/4,
-                    pixel_data[i],
-                    pixel_data[i + 1],
-                    pixel_data[i + 2],
-                    pixel_data[i + 3],
-                });
-            }
-            
-            // Calculate row stride including padding
-            const unpadded_row_size = width * 4;  // 4 bytes per pixel for 32bpp
-            const padding = (4 - (unpadded_row_size % 4)) % 4;  // Padding to make row size multiple of 4
-            const row_stride = unpadded_row_size + padding;
-            
-            std.debug.print("BMP Info: width={}, height={}, bpp={}, stride={}\n", .{
-                width, height, bits_per_pixel, row_stride
-            });
+            // Calculate cursor position (anchor top left)
+            const cursor_x = cursor.x;
+            const cursor_y = cursor.y;
 
             // Copy pixel data directly
             var y: c_int = 0;
-            while (y < height) : (y += 1) {
+            while (y < 30) : (y += 1) {
                 var x: c_int = 0;
-                while (x < width) : (x += 1) {
-                    const src_idx: usize = @intCast(((height - 1 - y) * row_stride + x * 4));
-                    
+                while (x < 30) : (x += 1) {
+                    const src_idx: usize = @intCast(((29 - y) * 30 + x) * 4); // 4 bytes per pixel, reading bottom-up
                     if (src_idx + 3 < pixel_data.len) {
-                        const screen_x = x + cursor.x;
-                        const screen_y = y + cursor.y;
+                        const screen_x = x + cursor_x;
+                        const screen_y = y + cursor_y;
 
                         if (screen_x >= 0 and screen_x < screen_width and
                             screen_y >= 0 and screen_y < screen_height)
                         {
-                            // BMP stores colors as BGR, we need RGBA
                             const b = pixel_data[src_idx];
                             const g = pixel_data[src_idx + 1];
                             const r = pixel_data[src_idx + 2];
                             const a = pixel_data[src_idx + 3];
 
+                            // Pre-multiply RGB values with alpha
                             const color = (@as(u32, a) << 24) | // Alpha in most significant byte
-                                (@as(u32, r) << 16) | // Red
-                                (@as(u32, g) << 8) | // Green
-                                @as(u32, b); // Blue
+                                (@as(u32, @divFloor(@as(u16, r) * @as(u16, a), 255)) << 16) | // Pre-multiplied Red
+                                (@as(u32, @divFloor(@as(u16, g) * @as(u16, a), 255)) << 8) | // Pre-multiplied Green
+                                @as(u32, @divFloor(@as(u16, b) * @as(u16, a), 255)); // Pre-multiplied Blue
 
                             const dest_idx = @as(usize, @intCast(screen_y * screen_width + screen_x));
                             pixels[dest_idx] = color;

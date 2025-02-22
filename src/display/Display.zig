@@ -14,6 +14,7 @@ encoder: Encoder,
 pub fn init() !Display {
     const capture = try Capture.init();
     const encoder = try Encoder.init(capture.dimensions.width, capture.dimensions.height);
+    std.debug.print("Display dimensions: {}x{}\n", .{ capture.dimensions.width, capture.dimensions.height });
     return Display{
         .capture = capture,
         .encoder = encoder,
