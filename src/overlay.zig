@@ -11,7 +11,7 @@ const c = @cImport({
 });
 
 // Embed the cursor bitmap
-const CURSOR_BITMAP_DATA = @embedFile("assets/cursor.bmp");
+const CURSOR_BITMAP_DATA = @embedFile("assets/cursor_30x30.bmp");
 
 pub fn startOverlay(allocator: std.mem.Allocator) !void {
     // start cursor overlay
@@ -103,18 +103,18 @@ pub const CursorOverlay = struct {
             }
 
             // Skip past BMP headers (54 bytes) to get to pixel data
-            const pixel_data = CURSOR_BITMAP_DATA[54..];
+            const pixel_data = CURSOR_BITMAP_DATA[138..];
 
             // Calculate cursor position (anchor top left)
-            const cursor_x = cursor.x - 2; // just for a little overlap
-            const cursor_y = cursor.y - 2;
+            const cursor_x = cursor.x;
+            const cursor_y = cursor.y;
 
             // Copy pixel data directly
             var y: c_int = 0;
-            while (y < 20) : (y += 1) {
+            while (y < 30) : (y += 1) {
                 var x: c_int = 0;
-                while (x < 20) : (x += 1) {
-                    const src_idx: usize = @intCast(((19 - y) * 20 + x) * 4); // 4 bytes per pixel, reading bottom-up
+                while (x < 30) : (x += 1) {
+                    const src_idx: usize = @intCast(((29 - y) * 30 + x) * 4); // 4 bytes per pixel, reading bottom-up
                     if (src_idx + 3 < pixel_data.len) {
                         const screen_x = x + cursor_x;
                         const screen_y = y + cursor_y;

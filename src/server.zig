@@ -71,7 +71,7 @@ fn getScreenshot(deps: *Deps, _: *httpz.Request, res: *httpz.Response) !void {
     const image = try deps.computer.display.screenshot(res.arena, .{
         .width = 1024,
         .height = 768,
-        .mode = .AspectFill, // means display will be correct scale, likely bigger than 1024x768
+        .mode = .AspectFill, // may end up larger than 1024x768
     });
     res.status = 200;
     res.header("Content-Type", "image/png");

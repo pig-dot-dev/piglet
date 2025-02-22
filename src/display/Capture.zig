@@ -33,7 +33,7 @@ pub fn init() !Capture {
 
     // Set options to draw mouse cursor
     var options: ?*c.AVDictionary = null;
-    _ = c.av_dict_set(&options, "draw_mouse", "1", 0);
+    // _ = c.av_dict_set(&options, "draw_mouse", "1", 0);
 
     // Open the input device (screen capture)
     const ret = c.avformat_open_input(
