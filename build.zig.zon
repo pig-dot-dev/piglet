@@ -1,6 +1,6 @@
 .{
     .name = "piglet",
-    .version = "0.0.6",
+    .version = "0.0.7",
     .dependencies = .{
         .httpz = .{
             .url = "git+https://github.com/karlseguin/http.zig?ref=zig-0.13#2a910af45a6a733adbcf9e5e56642c05f4f5c769",
