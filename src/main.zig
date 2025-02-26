@@ -19,7 +19,7 @@ var cli_config = struct {
     draw_cursor: bool = true,
     control_host: []const u8 = "piglet.pig.dev",
     secret: []const u8 = undefined,
-    do_stream: bool = true,
+    do_stream: bool = false, // Experimental
     stream_fps: f64 = 20.0,
     stream_bitrate: u32 = 2_500_000,
 }{};
@@ -113,7 +113,7 @@ pub fn main() !void {
                 },
             },
         },
-        .version = "0.0.6",
+        .version = "0.0.7",
         .help_config = .{ .color_usage = .always },
     };
     return r.run(&app);
